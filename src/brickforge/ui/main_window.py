@@ -1,10 +1,11 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QDockWidget,
-    QLabel,
-    QListWidget,
-    QMainWindow,
-    QStatusBar,
+from PySide6.QtWidgets import QMainWindow
+
+from brickforge.ui.widgets import (
+    BrickLibraryWidget,
+    BrickForgeStatusBar,
+    PropertiesWidget,
+    ViewportWidget,
 )
 
 
@@ -14,12 +15,10 @@ class MainWindow(QMainWindow):
 
         self.setup_window()
         self.create_menu()
-        self.create_docks()
-        self.create_viewport()
-        self.create_statusbar()
+        self.create_widgets()
 
     def setup_window(self):
-        self.setWindowTitle("BrickForge v0.1.0-alpha.1")
+        self.setWindowTitle("BrickForge v0.1.0")
         self.resize(1400, 800)
 
     def create_menu(self):
@@ -31,58 +30,19 @@ class MainWindow(QMainWindow):
         menu.addMenu("Project")
         menu.addMenu("Help")
 
-    def create_docks(self):
-        # -----------------------------
-        # Brick Library (Left Dock)
-        # -----------------------------
-        left = QDockWidget("Brick Library", self)
-        left.setMinimumWidth(250)
-        left.setAllowedAreas(Qt.LeftDockWidgetArea)
+    def create_widgets(self):
+        # Left Dock
+        self.library = BrickLibraryWidget(self)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.library)
 
-        brick_list = QListWidget()
-        left.setWidget(brick_list)
+        # Right Dock
+        self.properties = PropertiesWidget(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.properties)
 
-        self.addDockWidget(Qt.LeftDockWidgetArea, left)
+        # Center Viewport
+        self.viewport = ViewportWidget()
+        self.setCentralWidget(self.viewport)
 
-        # -----------------------------
-        # Properties (Right Dock)
-        # -----------------------------
-        right = QDockWidget("Properties", self)
-        right.setMinimumWidth(250)
-        right.setAllowedAreas(Qt.RightDockWidgetArea)
-
-        properties = QLabel(
-            "No brick selected.\n\n"
-            "Select a brick from the library\n"
-            "or click one in the viewport."
-        )
-
-        properties.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        properties.setContentsMargins(10, 10, 10, 10)
-
-        right.setWidget(properties)
-
-        self.addDockWidget(Qt.RightDockWidgetArea, right)
-
-    def create_viewport(self):
-        viewport = QLabel("3D Viewport\n\n(Coming Soon)")
-        viewport.setAlignment(Qt.AlignCenter)
-
-        viewport.setStyleSheet("""
-            QLabel {
-                background-color: #2b2b2b;
-                color: white;
-                font-size: 18px;
-                font-weight: bold;
-                border: 1px solid #555555;
-            }
-        """)
-
-        self.setCentralWidget(viewport)
-
-    def create_statusbar(self):
-        status = QStatusBar()
-
-        status.showMessage("Ready")
-
-        self.setStatusBar(status)
+        # Status Bar
+        self.status = BrickForgeStatusBar()
+        self.setStatusBar(self.status)
