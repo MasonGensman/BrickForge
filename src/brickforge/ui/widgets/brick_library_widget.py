@@ -12,7 +12,7 @@ from brickforge.services.brick_database import BrickDatabase
 
 
 class BrickLibraryWidget(QDockWidget):
-    """Displays available LEGO bricks."""
+    """Displays and searches available LEGO bricks."""
 
     brick_selected = Signal(object)
 
@@ -24,7 +24,11 @@ class BrickLibraryWidget(QDockWidget):
 
         self.database = BrickDatabase()
 
-        self._bricks: list[Brick] = []
+        # Complete brick list
+        self._all_bricks: list[Brick] = self.database.all()
+
+        # Currently displayed bricks
+        self._visible_bricks: list[Brick] = []
 
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -39,22 +43,45 @@ class BrickLibraryWidget(QDockWidget):
 
         self.setWidget(container)
 
-        self.populate()
+        self.populate(self._all_bricks)
 
+        self.search.textChanged.connect(self.filter_bricks)
         self.brick_list.currentRowChanged.connect(self.on_row_changed)
 
-    def populate(self):
-        self._bricks = self.database.all()
+    def populate(self, bricks: list[Brick]):
+
+        self._visible_bricks = bricks
 
         self.brick_list.clear()
 
-        for brick in self._bricks:
+        for brick in bricks:
             self.brick_list.addItem(str(brick))
 
+    def filter_bricks(self, text: str):
+
+        text = text.lower().strip()
+
+        if not text:
+            self.populate(self._all_bricks)
+            return
+
+        filtered = [
+            brick
+            for brick in self._all_bricks
+            if text in brick.name.lower()
+            or text in brick.part_number.lower()
+            or text in brick.category.lower()
+            or text in brick.color.lower()
+        ]
+
+        self.populate(filtered)
+
     def on_row_changed(self, row: int):
+
         if row < 0:
             return
 
-        brick = self._bricks[row]
+        if row >= len(self._visible_bricks):
+            return
 
-        self.brick_selected.emit(brick)
+        self.brick_selected.emit(self._visible_bricks[row])
