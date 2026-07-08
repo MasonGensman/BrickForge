@@ -9,7 +9,7 @@ QMainWindow {
     background-color: #252526;
 }
 
-/* ---------- Menu ---------- */
+/* ----- Menu ----- */
 
 QMenuBar {
     background-color: #2d2d30;
@@ -40,7 +40,7 @@ QMenu::item:selected {
     background-color: #007acc;
 }
 
-/* ---------- Toolbar ---------- */
+/* ----- Toolbar ----- */
 
 QToolBar {
     background-color: #2d2d30;
@@ -65,7 +65,7 @@ QToolButton:pressed {
     background-color: #007acc;
 }
 
-/* ---------- Dock Widgets ---------- */
+/* ----- Dock Widgets ----- */
 
 QDockWidget {
     color: white;
@@ -78,7 +78,7 @@ QDockWidget::title {
     border-bottom: 1px solid #3f3f46;
 }
 
-/* ---------- Lists ---------- */
+/* ----- Lists ----- */
 
 QListWidget {
     background-color: #1e1e1e;
@@ -95,12 +95,12 @@ QListWidget::item:selected {
     background-color: #007acc;
 }
 
-/* ---------- Search ---------- */
+/* ----- Search ----- */
 
 QLineEdit {
     background-color: #3c3c3c;
     color: white;
-    border: 1px solid #555;
+    border: 1px solid #555555;
     border-radius: 4px;
     padding: 6px;
 }
@@ -109,13 +109,13 @@ QLineEdit:focus {
     border: 1px solid #007acc;
 }
 
-/* ---------- Labels ---------- */
+/* ----- Labels ----- */
 
 QLabel {
     color: white;
 }
 
-/* ---------- Status Bar ---------- */
+/* ----- Status Bar ----- */
 
 QStatusBar {
     background-color: #2d2d30;
