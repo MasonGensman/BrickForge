@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
 
         self.status = BrickForgeStatusBar()
         self.setStatusBar(self.status)
+        self.status.showMessage("BrickForge Ready")
 
     def connect_signals(self):
         self.library.brick_selected.connect(self.properties.display_brick)
