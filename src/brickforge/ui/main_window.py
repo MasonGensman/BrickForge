@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow
 
+from brickforge.ui.toolbar import create_toolbar
 from brickforge.ui.widgets import (
     BrickLibraryWidget,
     BrickForgeStatusBar,
@@ -15,6 +16,7 @@ class MainWindow(QMainWindow):
 
         self.setup_window()
         self.create_menu()
+        create_toolbar(self)
         self.create_widgets()
         self.connect_signals()
 
