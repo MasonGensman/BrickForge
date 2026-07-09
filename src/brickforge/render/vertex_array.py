@@ -10,17 +10,26 @@ from OpenGL.GL import (
 
 
 class VertexArray:
-    """Simple OpenGL Vertex Array Object."""
+    """OpenGL Vertex Array Object."""
 
     def __init__(self):
+
         self.vao = glGenVertexArrays(1)
 
     def bind(self):
-        glBindVertexArray(self.vao)
+
+        glBindVertexArray(
+            self.vao,
+        )
 
     @staticmethod
     def unbind():
+
         glBindVertexArray(0)
 
     def delete(self):
-        glDeleteVertexArrays(1, [self.vao])
+
+        glDeleteVertexArrays(
+            1,
+            [self.vao],
+        )

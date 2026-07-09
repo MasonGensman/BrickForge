@@ -6,7 +6,7 @@ import numpy as np
 
 
 class Grid:
-    """Generates a simple XZ construction grid."""
+    """Simple construction grid."""
 
     def __init__(
         self,
@@ -16,9 +16,9 @@ class Grid:
         self.size = size
         self.spacing = spacing
 
-        self.vertices = self._build()
+        self.vertices = self._generate_vertices()
 
-    def _build(self):
+    def _generate_vertices(self) -> np.ndarray:
 
         vertices = []
 
@@ -26,21 +26,25 @@ class Grid:
 
         for i in range(-self.size, self.size + 1):
 
-            x = i * self.spacing
+            value = i * self.spacing
 
+            # Vertical line
             vertices.extend([
-                x, 0.0, -extent,
-                x, 0.0, extent,
+                value, 0.0, -extent,
+                value, 0.0, extent,
             ])
 
-            z = i * self.spacing
-
+            # Horizontal line
             vertices.extend([
-                -extent, 0.0, z,
-                extent, 0.0, z,
+                -extent, 0.0, value,
+                extent, 0.0, value,
             ])
 
         return np.array(
             vertices,
             dtype=np.float32,
         )
+
+    @property
+    def vertex_count(self) -> int:
+        return len(self.vertices) // 3

@@ -4,27 +4,41 @@ BrickForge Renderer
 
 from pathlib import Path
 
+import glm
+
 from OpenGL.GL import (
     GL_COLOR_BUFFER_BIT,
     GL_DEPTH_BUFFER_BIT,
+    GL_DEPTH_TEST,
+    GL_LINES,
     glClear,
     glClearColor,
+    glDrawArrays,
     glEnable,
-    GL_DEPTH_TEST,
 )
 
 from brickforge.render.camera import Camera
+from brickforge.render.grid import Grid
 from brickforge.render.shader import Shader
+from brickforge.render.vertex_array import VertexArray
+from brickforge.render.vertex_buffer import VertexBuffer
 
 
 class Renderer:
-    """Main renderer."""
+    """Main BrickForge renderer."""
 
     def __init__(self):
 
         self.camera = Camera()
 
         self.shader = None
+
+        self.grid = None
+        self.grid_vao = None
+        self.grid_vbo = None
+
+        self.width = 1
+        self.height = 1
 
         self.background = (
             0.14,
@@ -46,13 +60,28 @@ class Renderer:
             shader_path / "grid.frag",
         )
 
-    def resize(
-        self,
-        width: int,
-        height: int,
-    ):
-        self.width = width
-        self.height = height
+        self.grid = Grid()
+
+        self.grid_vao = VertexArray()
+        self.grid_vao.bind()
+
+        self.grid_vbo = VertexBuffer(
+            self.grid.vertices
+        )
+
+        self.grid_vbo.enable_attribute(
+            index=0,
+            size=3,
+            stride=12,
+            offset=0,
+        )
+
+        VertexArray.unbind()
+
+    def resize(self, width: int, height: int):
+
+        self.width = max(width, 1)
+        self.height = max(height, 1)
 
     def render(self):
 
@@ -61,4 +90,41 @@ class Renderer:
             GL_DEPTH_BUFFER_BIT
         )
 
+        if self.shader is None:
+            return
+
         self.shader.use()
+
+        model = glm.mat4(1.0)
+
+        view = self.camera.view_matrix()
+
+        projection = self.camera.projection_matrix(
+            self.width,
+            self.height,
+        )
+
+        self.shader.set_matrix4(
+            "u_model",
+            model,
+        )
+
+        self.shader.set_matrix4(
+            "u_view",
+            view,
+        )
+
+        self.shader.set_matrix4(
+            "u_projection",
+            projection,
+        )
+
+        self.grid_vao.bind()
+
+        glDrawArrays(
+            GL_LINES,
+            0,
+            self.grid.vertex_count,
+        )
+
+        VertexArray.unbind()

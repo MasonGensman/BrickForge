@@ -2,6 +2,10 @@
 BrickForge Vertex Buffer
 """
 
+import ctypes
+
+import numpy as np
+
 from OpenGL.GL import (
     GL_ARRAY_BUFFER,
     GL_FLOAT,
@@ -14,15 +18,13 @@ from OpenGL.GL import (
     glVertexAttribPointer,
 )
 
-import numpy as np
-
 
 class VertexBuffer:
-    """Simple OpenGL vertex buffer."""
+    """OpenGL Vertex Buffer Object."""
 
-    def __init__(self, vertices):
+    def __init__(self, vertices: np.ndarray):
 
-        self.vertices = np.array(
+        self.vertices = np.asarray(
             vertices,
             dtype=np.float32,
         )
@@ -48,6 +50,14 @@ class VertexBuffer:
             self.buffer,
         )
 
+    @staticmethod
+    def unbind():
+
+        glBindBuffer(
+            GL_ARRAY_BUFFER,
+            0,
+        )
+
     def enable_attribute(
         self,
         index: int,
@@ -64,7 +74,7 @@ class VertexBuffer:
             GL_FLOAT,
             False,
             stride,
-            offset,
+            ctypes.c_void_p(offset),
         )
 
     def delete(self):

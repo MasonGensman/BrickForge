@@ -18,21 +18,30 @@ from OpenGL.GL import (
     glGetProgramiv,
     glGetShaderInfoLog,
     glGetShaderiv,
+    glGetUniformLocation,
     glLinkProgram,
     glShaderSource,
+    glUniformMatrix4fv,
     glUseProgram,
 )
 
+import glm
+
 
 class Shader:
-    """GLSL shader program."""
+    """OpenGL GLSL shader wrapper."""
 
-    def __init__(self, vertex_file: str, fragment_file: str):
+    def __init__(self, vertex_file, fragment_file):
 
         self.program = glCreateProgram()
 
-        vertex_source = Path(vertex_file).read_text(encoding="utf-8")
-        fragment_source = Path(fragment_file).read_text(encoding="utf-8")
+        vertex_source = Path(vertex_file).read_text(
+            encoding="utf-8"
+        )
+
+        fragment_source = Path(fragment_file).read_text(
+            encoding="utf-8"
+        )
 
         vertex_shader = self._compile(
             GL_VERTEX_SHADER,
@@ -49,16 +58,36 @@ class Shader:
 
         glLinkProgram(self.program)
 
-        if not glGetProgramiv(self.program, GL_LINK_STATUS):
+        if not glGetProgramiv(
+            self.program,
+            GL_LINK_STATUS,
+        ):
             raise RuntimeError(
-                glGetProgramInfoLog(self.program).decode()
+                glGetProgramInfoLog(
+                    self.program
+                ).decode()
             )
 
         glDeleteShader(vertex_shader)
         glDeleteShader(fragment_shader)
 
     def use(self):
+
         glUseProgram(self.program)
+
+    def set_matrix4(self, name, matrix):
+
+        location = glGetUniformLocation(
+            self.program,
+            name,
+        )
+
+        glUniformMatrix4fv(
+            location,
+            1,
+            False,
+            glm.value_ptr(matrix),
+        )
 
     @staticmethod
     def _compile(shader_type, source):
@@ -69,7 +98,10 @@ class Shader:
 
         glCompileShader(shader)
 
-        if not glGetShaderiv(shader, GL_COMPILE_STATUS):
+        if not glGetShaderiv(
+            shader,
+            GL_COMPILE_STATUS,
+        ):
             raise RuntimeError(
                 glGetShaderInfoLog(shader).decode()
             )

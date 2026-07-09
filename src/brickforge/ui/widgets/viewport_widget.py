@@ -1,51 +1,32 @@
-from OpenGL.GL import (
-    glBegin,
-    glClear,
-    glClearColor,
-    glColor3f,
-    glEnd,
-    glFlush,
-    glVertex2f,
-    GL_COLOR_BUFFER_BIT,
-    GL_LINES,
-)
+"""
+BrickForge Viewport Widget
+"""
 
 from PySide6.QtCore import QTimer
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
+from brickforge.render.renderer import Renderer
+
 
 class ViewportWidget(QOpenGLWidget):
+    """Main 3D viewport."""
 
     def __init__(self):
         super().__init__()
 
         self.setMinimumSize(640, 480)
 
+        self.renderer = Renderer()
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
-        self.timer.start(16)
+        self.timer.start(16)  # ~60 FPS
 
     def initializeGL(self):
-        glClearColor(0.14, 0.15, 0.17, 1.0)
+        self.renderer.initialize()
 
     def resizeGL(self, width, height):
-        pass
+        self.renderer.resize(width, height)
 
     def paintGL(self):
-        glClear(GL_COLOR_BUFFER_BIT)
-
-        glBegin(GL_LINES)
-
-        # X Axis (Red)
-        glColor3f(1.0, 0.2, 0.2)
-        glVertex2f(-0.75, 0.0)
-        glVertex2f(0.75, 0.0)
-
-        # Y Axis (Green)
-        glColor3f(0.2, 1.0, 0.2)
-        glVertex2f(0.0, -0.75)
-        glVertex2f(0.0, 0.75)
-
-        glEnd()
-
-        glFlush()
+        self.renderer.render()
