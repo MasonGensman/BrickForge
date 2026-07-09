@@ -33,12 +33,6 @@ class LDrawLibrary:
         self,
         filename: str,
     ) -> Part:
-        """
-        Load a part from the library.
-
-        Uses an in-memory cache so each part is
-        only parsed once.
-        """
 
         filename = filename.lower()
 
@@ -55,6 +49,25 @@ class LDrawLibrary:
         self._cache.clear()
 
     @property
-    def cache_size(self) -> int:
+    def cache_size(self):
 
         return len(self._cache)
+
+    def test_load(
+        self,
+        filename: str,
+    ):
+
+        part = self.load(filename)
+
+        print()
+
+        print("========== LDraw Test ==========")
+        print(f"Part        : {part.name}")
+        print(f"Description : {part.description}")
+        print(f"Vertices    : {len(part.vertices) // 3}")
+        print(f"Triangles   : {len(part.vertices) // 9}")
+        print("================================")
+        print()
+
+        return part

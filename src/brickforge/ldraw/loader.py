@@ -9,11 +9,13 @@ from brickforge.ldraw.part import Part
 
 
 class LDrawLoader:
-    """Loads parts from an LDraw library."""
+    """Loads LDraw parts from the official library."""
 
     def __init__(self, library_path: str | Path):
 
         self.library_path = Path(library_path)
+
+        self.parts_path = self.library_path / "parts"
 
         self.parser = LDrawParser()
 
@@ -21,22 +23,25 @@ class LDrawLoader:
         self,
         filename: str,
     ) -> Part:
-        """
-        Load a part by filename.
 
-        Example:
-            load_part("3001.dat")
-        """
+        filename = filename.lower()
 
-        part_path = (
-            self.library_path
-            / "parts"
-            / filename
-        )
+        part_file = self.parts_path / filename
 
-        if not part_path.exists():
+        if not part_file.exists():
+
             raise FileNotFoundError(
-                f"Part not found: {part_path}"
+                f"Part not found:\n{part_file}"
             )
 
-        return self.parser.parse(part_path)
+        return self.parser.parse(part_file)
+
+    def part_exists(
+        self,
+        filename: str,
+    ) -> bool:
+
+        return (
+            self.parts_path
+            / filename.lower()
+        ).exists()

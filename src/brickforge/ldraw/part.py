@@ -30,5 +30,5 @@ class Part:
     )
 
     def has_geometry(self) -> bool:
-
+        """Return True if this part contains geometry."""
         return self.vertices.size > 0

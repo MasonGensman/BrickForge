@@ -17,6 +17,7 @@ from OpenGL.GL import (
     glEnable,
 )
 
+from brickforge.ldraw.library import LDrawLibrary
 from brickforge.render.camera import Camera
 from brickforge.render.grid import Grid
 from brickforge.render.shader import Shader
@@ -36,6 +37,8 @@ class Renderer:
         self.grid = None
         self.grid_vao = None
         self.grid_vbo = None
+
+        self.library = None
 
         self.width = 1
         self.height = 1
@@ -78,7 +81,30 @@ class Renderer:
 
         VertexArray.unbind()
 
-    def resize(self, width: int, height: int):
+        # ----- LDraw Test -----
+
+        ldraw_path = (
+            Path(__file__).resolve().parents[1]
+            / "ldraw"
+            / "ldraw"
+        )
+
+        print(f"LDraw Library: {ldraw_path}")
+
+        self.library = LDrawLibrary(ldraw_path)
+
+        part = self.library.test_load("3001.dat")
+
+        print(
+            f"Loaded {part.name} "
+            f"({len(part.vertices)//9} triangles)"
+        )
+
+    def resize(
+        self,
+        width: int,
+        height: int,
+    ):
 
         self.width = max(width, 1)
         self.height = max(height, 1)
