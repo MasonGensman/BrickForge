@@ -1,5 +1,6 @@
 """
 BrickForge Vertex Buffer
+Renderer V2
 """
 
 import ctypes
@@ -20,21 +21,23 @@ from OpenGL.GL import (
 
 
 class VertexBuffer:
-    """OpenGL Vertex Buffer Object."""
+    """Modern OpenGL Vertex Buffer."""
 
-    def __init__(self, vertices: np.ndarray):
+    def __init__(self, vertices):
 
         self.vertices = np.asarray(
             vertices,
             dtype=np.float32,
         )
 
-        self.buffer = glGenBuffers(1)
+        self._id = glGenBuffers(1)
 
-        glBindBuffer(
-            GL_ARRAY_BUFFER,
-            self.buffer,
-        )
+        if not self._id:
+            raise RuntimeError(
+                "Failed to create VBO."
+            )
+
+        self.bind()
 
         glBufferData(
             GL_ARRAY_BUFFER,
@@ -43,11 +46,16 @@ class VertexBuffer:
             GL_STATIC_DRAW,
         )
 
+    @property
+    def id(self):
+
+        return self._id
+
     def bind(self):
 
         glBindBuffer(
             GL_ARRAY_BUFFER,
-            self.buffer,
+            self._id,
         )
 
     @staticmethod
@@ -60,11 +68,13 @@ class VertexBuffer:
 
     def enable_attribute(
         self,
-        index: int,
-        size: int,
-        stride: int,
-        offset: int,
+        index,
+        size,
+        stride,
+        offset,
     ):
+
+        self.bind()
 
         glEnableVertexAttribArray(index)
 
@@ -79,7 +89,18 @@ class VertexBuffer:
 
     def delete(self):
 
-        glDeleteBuffers(
-            1,
-            [self.buffer],
-        )
+        if self._id:
+
+            glDeleteBuffers(
+                1,
+                [self._id],
+            )
+
+            self._id = 0
+
+    def __del__(self):
+
+        try:
+            self.delete()
+        except Exception:
+            pass

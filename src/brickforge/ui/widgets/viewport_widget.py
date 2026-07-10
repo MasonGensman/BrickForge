@@ -1,5 +1,6 @@
 """
 BrickForge Viewport Widget
+Renderer V2
 """
 
 from PySide6.QtCore import Qt, QTimer
@@ -34,15 +35,7 @@ class ViewportWidget(QOpenGLWidget):
         self.renderer.resize(width, height)
 
     def paintGL(self):
-
-        if not self.isValid():
-            return
-
-        try:
-            self.renderer.render()
-        except Exception:
-            self.timer.stop()
-            raise
+        self.renderer.render()
 
     def mousePressEvent(self, event):
 
@@ -68,14 +61,12 @@ class ViewportWidget(QOpenGLWidget):
         delta = event.position() - self.last_mouse_position
 
         if event.buttons() & Qt.RightButton:
-
             self.renderer.camera.orbit(
                 delta.x(),
                 delta.y(),
             )
 
         elif event.buttons() & Qt.MiddleButton:
-
             self.renderer.camera.pan(
                 delta.x(),
                 delta.y(),
@@ -83,26 +74,16 @@ class ViewportWidget(QOpenGLWidget):
 
         self.last_mouse_position = event.position()
 
-        self.update()
-
     def wheelEvent(self, event):
 
         self.renderer.camera.zoom(
             -event.angleDelta().y() / 240.0
         )
 
-        self.update()
-
-    def keyPressEvent(
-        self,
-        event: QKeyEvent,
-    ):
+    def keyPressEvent(self, event: QKeyEvent):
 
         if event.key() == Qt.Key_F:
-
             self.renderer.camera.reset()
-
-            self.update()
 
         super().keyPressEvent(event)
 

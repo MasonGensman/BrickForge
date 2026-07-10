@@ -1,5 +1,6 @@
 """
 BrickForge Shader
+Renderer V2
 """
 
 from pathlib import Path
@@ -13,6 +14,7 @@ from OpenGL.GL import (
     glCompileShader,
     glCreateProgram,
     glCreateShader,
+    glDeleteProgram,
     glDeleteShader,
     glGetProgramInfoLog,
     glGetProgramiv,
@@ -29,17 +31,27 @@ import glm
 
 
 class Shader:
-    """OpenGL GLSL shader wrapper."""
+    """Modern GLSL shader wrapper."""
 
-    def __init__(self, vertex_file, fragment_file):
+    def __init__(
+        self,
+        vertex_file,
+        fragment_file,
+    ):
 
         self.program = glCreateProgram()
 
-        vertex_source = Path(vertex_file).read_text(
+        self._uniforms = {}
+
+        vertex_source = Path(
+            vertex_file
+        ).read_text(
             encoding="utf-8"
         )
 
-        fragment_source = Path(fragment_file).read_text(
+        fragment_source = Path(
+            fragment_file
+        ).read_text(
             encoding="utf-8"
         )
 
@@ -53,10 +65,19 @@ class Shader:
             fragment_source,
         )
 
-        glAttachShader(self.program, vertex_shader)
-        glAttachShader(self.program, fragment_shader)
+        glAttachShader(
+            self.program,
+            vertex_shader,
+        )
 
-        glLinkProgram(self.program)
+        glAttachShader(
+            self.program,
+            fragment_shader,
+        )
+
+        glLinkProgram(
+            self.program,
+        )
 
         if not glGetProgramiv(
             self.program,
@@ -68,42 +89,91 @@ class Shader:
                 ).decode()
             )
 
-        glDeleteShader(vertex_shader)
-        glDeleteShader(fragment_shader)
+        glDeleteShader(
+            vertex_shader
+        )
+
+        glDeleteShader(
+            fragment_shader
+        )
 
     def use(self):
 
-        glUseProgram(self.program)
-
-    def set_matrix4(self, name, matrix):
-
-        location = glGetUniformLocation(
-            self.program,
-            name,
+        glUseProgram(
+            self.program
         )
 
+    def uniform_location(
+        self,
+        name: str,
+    ) -> int:
+
+        if name not in self._uniforms:
+
+            location = glGetUniformLocation(
+                self.program,
+                name,
+            )
+
+            if location == -1:
+                raise RuntimeError(
+                    f"Uniform '{name}' not found."
+                )
+
+            self._uniforms[name] = location
+
+        return self._uniforms[name]
+
+    def set_matrix4(
+        self,
+        name,
+        matrix,
+    ):
+
         glUniformMatrix4fv(
-            location,
+            self.uniform_location(name),
             1,
             False,
             glm.value_ptr(matrix),
         )
 
+    def delete(self):
+
+        if self.program:
+
+            glDeleteProgram(
+                self.program
+            )
+
+            self.program = 0
+
     @staticmethod
-    def _compile(shader_type, source):
+    def _compile(
+        shader_type,
+        source,
+    ):
 
-        shader = glCreateShader(shader_type)
+        shader = glCreateShader(
+            shader_type
+        )
 
-        glShaderSource(shader, source)
+        glShaderSource(
+            shader,
+            source,
+        )
 
-        glCompileShader(shader)
+        glCompileShader(
+            shader
+        )
 
         if not glGetShaderiv(
             shader,
             GL_COMPILE_STATUS,
         ):
             raise RuntimeError(
-                glGetShaderInfoLog(shader).decode()
+                glGetShaderInfoLog(
+                    shader
+                ).decode()
             )
 
         return shader

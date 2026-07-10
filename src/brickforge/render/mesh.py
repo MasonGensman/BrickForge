@@ -1,5 +1,6 @@
 """
 BrickForge Mesh
+Renderer V2
 """
 
 from OpenGL.GL import (
@@ -12,11 +13,9 @@ from brickforge.render.vertex_buffer import VertexBuffer
 
 
 class Mesh:
-    """GPU mesh."""
+    """GPU mesh consisting of one VAO and one VBO."""
 
     def __init__(self, vertices):
-
-        self.vertices = vertices
 
         self.vertex_count = len(vertices) // 3
 
@@ -36,6 +35,9 @@ class Mesh:
 
     def draw(self):
 
+        if self.vertex_count == 0:
+            return
+
         self.vao.bind()
 
         glDrawArrays(
@@ -45,3 +47,15 @@ class Mesh:
         )
 
         VertexArray.unbind()
+
+    def delete(self):
+
+        self.vbo.delete()
+        self.vao.delete()
+
+    def __del__(self):
+
+        try:
+            self.delete()
+        except Exception:
+            pass
