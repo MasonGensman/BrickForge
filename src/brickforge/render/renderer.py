@@ -26,7 +26,6 @@ from brickforge.render.vertex_buffer import VertexBuffer
 
 
 class Renderer:
-    """Main BrickForge renderer."""
 
     def __init__(self):
 
@@ -39,22 +38,21 @@ class Renderer:
         self.grid_vbo = None
 
         self.library = None
+        self.brick_mesh = None
 
         self.width = 1
         self.height = 1
-
-        self.background = (
-            0.14,
-            0.15,
-            0.17,
-            1.0,
-        )
 
     def initialize(self):
 
         glEnable(GL_DEPTH_TEST)
 
-        glClearColor(*self.background)
+        glClearColor(
+            0.14,
+            0.15,
+            0.17,
+            1.0,
+        )
 
         shader_path = Path(__file__).parent / "shaders"
 
@@ -73,62 +71,56 @@ class Renderer:
         )
 
         self.grid_vbo.enable_attribute(
-            index=0,
-            size=3,
-            stride=12,
-            offset=0,
+            0,
+            3,
+            12,
+            0,
         )
 
         VertexArray.unbind()
 
-        # ----- LDraw Test -----
-
-        ldraw_path = (
+        library_path = (
             Path(__file__).resolve().parents[1]
             / "ldraw"
             / "ldraw"
         )
 
-        print(f"LDraw Library: {ldraw_path}")
-
-        self.library = LDrawLibrary(ldraw_path)
-
-        part = self.library.test_load("3001.dat")
-
-        print(
-            f"Loaded {part.name} "
-            f"({len(part.vertices)//9} triangles)"
+        self.library = LDrawLibrary(
+            library_path
         )
+
+        part = self.library.test_load(
+            "3001.dat"
+        )
+
+        self.brick_mesh = part.build_mesh()
 
     def resize(
         self,
-        width: int,
-        height: int,
+        width,
+        height,
     ):
 
-        self.width = max(width, 1)
-        self.height = max(height, 1)
+        self.width = max(
+            width,
+            1,
+        )
+
+        self.height = max(
+            height,
+            1,
+        )
 
     def render(self):
 
         glClear(
-            GL_COLOR_BUFFER_BIT |
-            GL_DEPTH_BUFFER_BIT
+            GL_COLOR_BUFFER_BIT
+            | GL_DEPTH_BUFFER_BIT
         )
-
-        if self.shader is None:
-            return
 
         self.shader.use()
 
-        model = glm.mat4(1.0)
-
-        view = self.camera.view_matrix()
-
-        projection = self.camera.projection_matrix(
-            self.width,
-            self.height,
-        )
+        model = glm.mat4(1)
 
         self.shader.set_matrix4(
             "u_model",
@@ -137,12 +129,15 @@ class Renderer:
 
         self.shader.set_matrix4(
             "u_view",
-            view,
+            self.camera.view_matrix(),
         )
 
         self.shader.set_matrix4(
             "u_projection",
-            projection,
+            self.camera.projection_matrix(
+                self.width,
+                self.height,
+            ),
         )
 
         self.grid_vao.bind()
@@ -154,3 +149,11 @@ class Renderer:
         )
 
         VertexArray.unbind()
+
+        #
+        # Draw LEGO mesh
+        #
+
+        if self.brick_mesh is not None:
+
+            self.brick_mesh.draw()

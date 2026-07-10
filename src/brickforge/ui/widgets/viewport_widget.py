@@ -21,8 +21,9 @@ class ViewportWidget(QOpenGLWidget):
         self.renderer = Renderer()
 
         self.timer = QTimer(self)
+        self.timer.setInterval(16)
         self.timer.timeout.connect(self.update)
-        self.timer.start(16)
+        self.timer.start()
 
         self.last_mouse_position = None
 
@@ -33,7 +34,15 @@ class ViewportWidget(QOpenGLWidget):
         self.renderer.resize(width, height)
 
     def paintGL(self):
-        self.renderer.render()
+
+        if not self.isValid():
+            return
+
+        try:
+            self.renderer.render()
+        except Exception:
+            self.timer.stop()
+            raise
 
     def mousePressEvent(self, event):
 
@@ -96,3 +105,9 @@ class ViewportWidget(QOpenGLWidget):
             self.update()
 
         super().keyPressEvent(event)
+
+    def closeEvent(self, event):
+
+        self.timer.stop()
+
+        super().closeEvent(event)

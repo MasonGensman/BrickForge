@@ -6,6 +6,7 @@ from pathlib import Path
 
 from brickforge.ldraw.loader import LDrawLoader
 from brickforge.ldraw.part import Part
+from brickforge.render.mesh import Mesh
 
 
 class LDrawLibrary:
@@ -44,6 +45,13 @@ class LDrawLibrary:
 
         return self._cache[filename]
 
+    def load_mesh(
+        self,
+        filename: str,
+    ) -> Mesh | None:
+
+        return self.load(filename).build_mesh()
+
     def clear_cache(self):
 
         self._cache.clear()
@@ -56,18 +64,20 @@ class LDrawLibrary:
     def test_load(
         self,
         filename: str,
-    ):
+    ) -> Part:
 
         part = self.load(filename)
 
         print()
-
-        print("========== LDraw Test ==========")
-        print(f"Part        : {part.name}")
+        print("=" * 40)
+        print("LDraw Part Loaded")
+        print("=" * 40)
+        print(f"Name        : {part.name}")
         print(f"Description : {part.description}")
         print(f"Vertices    : {len(part.vertices) // 3}")
         print(f"Triangles   : {len(part.vertices) // 9}")
-        print("================================")
+        print(f"Has Mesh    : {part.has_geometry()}")
+        print("=" * 40)
         print()
 
         return part

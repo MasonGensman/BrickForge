@@ -19,11 +19,11 @@ class LDrawParser:
 
         filename = Path(filename)
 
-        vertices = []
-
         part = Part(
             name=filename.stem,
         )
+
+        vertices = []
 
         with filename.open(
             "r",
@@ -40,15 +40,30 @@ class LDrawParser:
 
                 tokens = line.split()
 
-                if tokens[0] == "0":
+                record_type = tokens[0]
+
+                if record_type == "0":
 
                     if (
-                        part.description == ""
+                        not part.description
                         and len(tokens) > 1
                     ):
                         part.description = " ".join(tokens[1:])
 
-                elif tokens[0] == "3":
+                elif record_type == "1":
+                    #
+                    # Type 1 subfile reference
+                    # (handled in the next Build Kit)
+                    #
+                    continue
+
+                elif record_type == "2":
+                    #
+                    # Optional line
+                    #
+                    continue
+
+                elif record_type == "3":
 
                     coords = list(
                         map(
@@ -59,7 +74,7 @@ class LDrawParser:
 
                     vertices.extend(coords)
 
-                elif tokens[0] == "4":
+                elif record_type == "4":
 
                     coords = list(
                         map(
@@ -80,6 +95,12 @@ class LDrawParser:
                     vertices.extend(
                         p1 + p3 + p4
                     )
+
+                elif record_type == "5":
+                    #
+                    # Conditional line
+                    #
+                    continue
 
         part.vertices = np.array(
             vertices,
