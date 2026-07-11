@@ -11,7 +11,7 @@ from brickforge.render.renderer import Renderer
 
 
 class ViewportWidget(QOpenGLWidget):
-    """Main 3D viewport."""
+    """Main OpenGL viewport."""
 
     def __init__(self):
         super().__init__()
@@ -21,20 +21,41 @@ class ViewportWidget(QOpenGLWidget):
 
         self.renderer = Renderer()
 
+        #
+        # Create timer but don't start it until
+        # the OpenGL context is initialized.
+        #
         self.timer = QTimer(self)
         self.timer.setInterval(16)
         self.timer.timeout.connect(self.update)
-        self.timer.start()
 
         self.last_mouse_position = None
 
     def initializeGL(self):
+
         self.renderer.initialize()
 
-    def resizeGL(self, width, height):
-        self.renderer.resize(width, height)
+        #
+        # Safe to begin rendering.
+        #
+        self.timer.start()
+
+    def resizeGL(
+        self,
+        width,
+        height,
+    ):
+
+        self.renderer.resize(
+            width,
+            height,
+        )
 
     def paintGL(self):
+
+        if not self.isValid():
+            return
+
         self.renderer.render()
 
     def mousePressEvent(self, event):
@@ -58,15 +79,20 @@ class ViewportWidget(QOpenGLWidget):
         if self.last_mouse_position is None:
             return
 
-        delta = event.position() - self.last_mouse_position
+        delta = (
+            event.position()
+            - self.last_mouse_position
+        )
 
         if event.buttons() & Qt.RightButton:
+
             self.renderer.camera.orbit(
                 delta.x(),
                 delta.y(),
             )
 
         elif event.buttons() & Qt.MiddleButton:
+
             self.renderer.camera.pan(
                 delta.x(),
                 delta.y(),
@@ -74,21 +100,44 @@ class ViewportWidget(QOpenGLWidget):
 
         self.last_mouse_position = event.position()
 
+        #
+        # Redraw after camera movement.
+        #
+        self.update()
+
     def wheelEvent(self, event):
 
         self.renderer.camera.zoom(
             -event.angleDelta().y() / 240.0
         )
 
-    def keyPressEvent(self, event: QKeyEvent):
+        #
+        # Redraw after zoom.
+        #
+        self.update()
+
+    def keyPressEvent(
+        self,
+        event: QKeyEvent,
+    ):
 
         if event.key() == Qt.Key_F:
+
             self.renderer.camera.reset()
+
+            #
+            # Redraw after reset.
+            #
+            self.update()
 
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
 
+        #
+        # Stop rendering before the widget
+        # is destroyed.
+        #
         self.timer.stop()
 
         super().closeEvent(event)

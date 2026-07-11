@@ -1,67 +1,43 @@
 """
 BrickForge LDraw Part
+
+Represents a parsed LDraw part.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from brickforge.render.mesh import Mesh
 
-
-@dataclass
+@dataclass(slots=True)
 class Part:
-    """Represents one LDraw part."""
+    """Represents one parsed LDraw part."""
 
     name: str = ""
-
     description: str = ""
 
     vertices: np.ndarray = field(
-        default_factory=lambda: np.array(
-            [],
+        default_factory=lambda: np.empty(
+            0,
             dtype=np.float32,
         )
     )
 
-    indices: np.ndarray = field(
-        default_factory=lambda: np.array(
-            [],
-            dtype=np.uint32,
-        )
-    )
-
     def has_geometry(self) -> bool:
+        """Return True if this part contains geometry."""
         return self.vertices.size > 0
 
-    def build_mesh(self) -> Mesh | None:
+    @property
+    def vertex_count(self) -> int:
+        return self.vertices.size // 3
 
-        if not self.has_geometry():
-            return None
+    @property
+    def triangle_count(self) -> int:
+        return self.vertex_count // 3
 
-        # Local import avoids a circular dependency.
-        from brickforge.render.mesh import Mesh
-
-        return Mesh(self.vertices)
-
-    def append_vertices(
-        self,
-        vertices: np.ndarray,
-    ) -> None:
-
-        if vertices.size == 0:
-            return
-
-        if self.vertices.size == 0:
-            self.vertices = vertices.copy()
-        else:
-            self.vertices = np.concatenate(
-                (
-                    self.vertices,
-                    vertices,
-                )
-            )
+    def clear(self) -> None:
+        """Release all geometry."""
+        self.vertices = np.empty(
+            0,
+            dtype=np.float32,
+        )

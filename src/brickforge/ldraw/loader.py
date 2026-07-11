@@ -1,5 +1,7 @@
 """
 BrickForge LDraw Loader
+
+Loads individual LDraw part files from the library.
 """
 
 from pathlib import Path
@@ -11,10 +13,12 @@ from brickforge.ldraw.part import Part
 class LDrawLoader:
     """Loads LDraw parts from the official library."""
 
-    def __init__(self, library_path: str | Path):
+    def __init__(
+        self,
+        library_path: str | Path,
+    ):
 
         self.library_path = Path(library_path)
-
         self.parts_path = self.library_path / "parts"
 
         self.parser = LDrawParser()
@@ -23,6 +27,9 @@ class LDrawLoader:
         self,
         filename: str,
     ) -> Part:
+        """
+        Load one LDraw part from disk.
+        """
 
         filename = filename.lower()
 
@@ -31,7 +38,7 @@ class LDrawLoader:
         if not part_file.exists():
 
             raise FileNotFoundError(
-                f"Part not found:\n{part_file}"
+                f"LDraw part not found:\n{part_file}"
             )
 
         return self.parser.parse(part_file)
@@ -40,6 +47,9 @@ class LDrawLoader:
         self,
         filename: str,
     ) -> bool:
+        """
+        Check whether a part exists.
+        """
 
         return (
             self.parts_path

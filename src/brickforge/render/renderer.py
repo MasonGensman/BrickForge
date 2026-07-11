@@ -1,6 +1,7 @@
 """
 BrickForge Renderer
 Renderer V2
+Milestone 2
 """
 
 from pathlib import Path
@@ -18,8 +19,10 @@ from OpenGL.GL import (
     glEnable,
 )
 
+from brickforge.ldraw.library import LDrawLibrary
 from brickforge.render.camera import Camera
 from brickforge.render.grid import Grid
+from brickforge.render.mesh import Mesh
 from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
@@ -41,10 +44,18 @@ class Renderer:
         self.grid_vao = None
         self.grid_vbo = None
 
+        self.library = None
+        self.test_part = None
+        self.test_mesh = None
+
         self.width = 1
         self.height = 1
 
     def initialize(self):
+
+        #
+        # OpenGL Context
+        #
 
         self.context.initialize()
 
@@ -57,12 +68,20 @@ class Renderer:
             1.0,
         )
 
+        #
+        # Shader
+        #
+
         shader_path = Path(__file__).parent / "shaders"
 
         self.shader = Shader(
             shader_path / "grid.vert",
             shader_path / "grid.frag",
         )
+
+        #
+        # Grid
+        #
 
         self.grid = Grid()
 
@@ -81,6 +100,34 @@ class Renderer:
         )
 
         VertexArray.unbind()
+
+        #
+        # LDraw Library
+        #
+
+        library_path = (
+            Path(__file__).resolve().parents[1]
+            / "ldraw"
+            / "ldraw"
+        )
+
+        self.library = LDrawLibrary(
+            library_path
+        )
+
+        self.test_part = self.library.load(
+            "3001.dat"
+        )
+
+        #
+        # Build GPU mesh
+        #
+
+        if self.test_part.has_geometry():
+
+            self.test_mesh = Mesh(
+                self.test_part.vertices
+            )
 
     def resize(
         self,
@@ -119,6 +166,10 @@ class Renderer:
                 self.height,
             ),
         )
+
+        #
+        # Draw Grid
+        #
 
         self.grid_vao.bind()
 
