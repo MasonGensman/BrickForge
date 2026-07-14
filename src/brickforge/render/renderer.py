@@ -143,6 +143,17 @@ class Renderer:
         self.width = max(width, 1)
         self.height = max(height, 1)
 
+    def set_scene(
+        self,
+        scene: Scene,
+    ) -> None:
+        """
+        Replace the active Scene. render() already re-reads self.scene
+        fresh every frame, so no other renderer state needs to change.
+        """
+
+        self.scene = scene
+
     def render(self):
 
         self.context.validate()
