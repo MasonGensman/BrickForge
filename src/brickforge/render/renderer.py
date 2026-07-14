@@ -97,7 +97,7 @@ class Renderer:
 
         self.brick_manager = BrickManager(library_path)
 
-        self.scene.add(
+        self.scene.add_brick(
             SceneBrick(
                 id=1,
                 part_name="3001.dat",

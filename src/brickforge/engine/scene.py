@@ -12,12 +12,31 @@ class Scene:
 
         self.bricks: list[SceneBrick] = []
 
-    def add(
+    def add_brick(
         self,
         brick: SceneBrick,
     ) -> None:
 
         self.bricks.append(brick)
+
+    def remove_brick(
+        self,
+        brick_id: int,
+    ) -> None:
+
+        self.bricks = [
+            brick
+            for brick in self.bricks
+            if brick.id != brick_id
+        ]
+
+    def clear(self) -> None:
+
+        self.bricks = []
+
+    def iterate(self):
+
+        return iter(self.bricks)
 
     def __iter__(self):
 
