@@ -101,6 +101,23 @@ class Renderer:
             SceneBrick(
                 id=1,
                 part_name="3001.dat",
+                position=glm.vec3(0.0, 0.0, 0.0),
+            )
+        )
+
+        self.scene.add_brick(
+            SceneBrick(
+                id=2,
+                part_name="3003.dat",
+                position=glm.vec3(100.0, 0.0, 0.0),
+            )
+        )
+
+        self.scene.add_brick(
+            SceneBrick(
+                id=3,
+                part_name="3004.dat",
+                position=glm.vec3(200.0, 0.0, 0.0),
             )
         )
 
@@ -169,6 +186,14 @@ class Renderer:
         for brick, mesh in self.brick_manager.renderables(
             self.scene
         ):
+
+            self.shader.set_matrix4(
+                "u_model",
+                glm.translate(
+                    glm.mat4(1.0),
+                    brick.position,
+                ),
+            )
 
             self.shader.set_color(
                 0.80,
