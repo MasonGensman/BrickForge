@@ -5,6 +5,7 @@ from brickforge.ui.toolbar import create_toolbar
 from brickforge.ui.widgets import (
     BrickLibraryWidget,
     BrickForgeStatusBar,
+    ImagePreviewWidget,
     PropertiesWidget,
     ViewportWidget,
 )
@@ -39,6 +40,9 @@ class MainWindow(QMainWindow):
 
         self.properties = PropertiesWidget(self)
         self.addDockWidget(Qt.RightDockWidgetArea, self.properties)
+
+        self.image_preview = ImagePreviewWidget(self)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.image_preview)
 
         self.viewport = ViewportWidget()
         self.setCentralWidget(self.viewport)
