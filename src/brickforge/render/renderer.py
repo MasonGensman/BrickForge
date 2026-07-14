@@ -23,6 +23,7 @@ from brickforge.engine.brick_manager import BrickManager
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
 from brickforge.render.camera import Camera
+from brickforge.render.color_resolver import ColorResolver
 from brickforge.render.grid import Grid
 from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
@@ -48,6 +49,7 @@ class Renderer:
 
         self.scene = Scene()
         self.brick_manager = None
+        self.color_resolver = None
 
         self.width = 1
         self.height = 1
@@ -97,6 +99,10 @@ class Renderer:
         )
 
         self.brick_manager = BrickManager(library_path)
+
+        self.color_resolver = ColorResolver(
+            library_path / "LDConfig.ldr"
+        )
 
         catalog = PartCatalog.from_seed()
 
@@ -203,10 +209,12 @@ class Renderer:
                 * glm.mat4_cast(brick.rotation),
             )
 
+            resolved_color = self.color_resolver.resolve(
+                brick.color_code
+            )
+
             self.shader.set_color(
-                0.80,
-                0.05,
-                0.05,
+                *resolved_color.rgb
             )
 
             mesh.draw()
