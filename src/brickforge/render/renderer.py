@@ -4,7 +4,6 @@ Renderer V2
 Milestone 3.1
 """
 
-import logging
 from pathlib import Path
 
 import glm
@@ -20,16 +19,15 @@ from OpenGL.GL import (
     glEnable,
 )
 
-from brickforge.ldraw.library import LDrawLibrary
+from brickforge.engine.brick_manager import BrickManager
+from brickforge.engine.scene import Scene
+from brickforge.engine.scene_brick import SceneBrick
 from brickforge.render.camera import Camera
 from brickforge.render.grid import Grid
-from brickforge.render.mesh import Mesh
 from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
 from brickforge.render.vertex_buffer import VertexBuffer
-
-logger = logging.getLogger(__name__)
 
 
 class Renderer:
@@ -47,9 +45,8 @@ class Renderer:
         self.grid_vao = None
         self.grid_vbo = None
 
-        self.library = None
-        self.test_part = None
-        self.test_mesh = None
+        self.scene = Scene()
+        self.brick_manager = None
 
         self.width = 1
         self.height = 1
@@ -98,29 +95,14 @@ class Renderer:
             / "ldraw"
         )
 
-        try:
+        self.brick_manager = BrickManager(library_path)
 
-            self.library = LDrawLibrary(
-                library_path
+        self.scene.add(
+            SceneBrick(
+                id=1,
+                part_name="3001.dat",
             )
-
-            self.test_part = self.library.load(
-                "3001.dat"
-            )
-
-            if self.test_part.has_geometry():
-
-                self.test_mesh = Mesh(
-                    self.test_part.vertices
-                )
-
-        except OSError as error:
-
-            logger.warning(
-                "LDraw test part could not be loaded, "
-                "continuing with grid only: %s",
-                error,
-            )
+        )
 
     def resize(
         self,
@@ -181,10 +163,12 @@ class Renderer:
         VertexArray.unbind()
 
         #
-        # Draw test brick
+        # Draw scene bricks
         #
 
-        if self.test_mesh is not None:
+        for brick, mesh in self.brick_manager.renderables(
+            self.scene
+        ):
 
             self.shader.set_color(
                 0.80,
@@ -192,4 +176,4 @@ class Renderer:
                 0.05,
             )
 
-            self.test_mesh.draw()
+            mesh.draw()
