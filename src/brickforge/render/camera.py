@@ -122,6 +122,7 @@ class Camera:
     def reset(self):
 
         self.distance = 15.0
+
         self.yaw = 45.0
         self.pitch = 30.0
 

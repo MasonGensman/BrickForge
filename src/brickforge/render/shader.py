@@ -23,6 +23,7 @@ from OpenGL.GL import (
     glGetUniformLocation,
     glLinkProgram,
     glShaderSource,
+    glUniform3f,
     glUniformMatrix4fv,
     glUseProgram,
 )
@@ -43,15 +44,11 @@ class Shader:
 
         self._uniforms = {}
 
-        vertex_source = Path(
-            vertex_file
-        ).read_text(
+        vertex_source = Path(vertex_file).read_text(
             encoding="utf-8"
         )
 
-        fragment_source = Path(
-            fragment_file
-        ).read_text(
+        fragment_source = Path(fragment_file).read_text(
             encoding="utf-8"
         )
 
@@ -89,19 +86,12 @@ class Shader:
                 ).decode()
             )
 
-        glDeleteShader(
-            vertex_shader
-        )
-
-        glDeleteShader(
-            fragment_shader
-        )
+        glDeleteShader(vertex_shader)
+        glDeleteShader(fragment_shader)
 
     def use(self):
 
-        glUseProgram(
-            self.program
-        )
+        glUseProgram(self.program)
 
     def uniform_location(
         self,
@@ -135,6 +125,20 @@ class Shader:
             1,
             False,
             glm.value_ptr(matrix),
+        )
+
+    def set_color(
+        self,
+        r: float,
+        g: float,
+        b: float,
+    ):
+
+        glUniform3f(
+            self.uniform_location("u_color"),
+            r,
+            g,
+            b,
         )
 
     def delete(self):

@@ -1,9 +1,10 @@
 """
 BrickForge Renderer
 Renderer V2
-Milestone 2
+Milestone 3.1
 """
 
+import logging
 from pathlib import Path
 
 import glm
@@ -27,6 +28,8 @@ from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
 from brickforge.render.vertex_buffer import VertexBuffer
+
+logger = logging.getLogger(__name__)
 
 
 class Renderer:
@@ -53,10 +56,6 @@ class Renderer:
 
     def initialize(self):
 
-        #
-        # OpenGL Context
-        #
-
         self.context.initialize()
 
         glEnable(GL_DEPTH_TEST)
@@ -68,20 +67,12 @@ class Renderer:
             1.0,
         )
 
-        #
-        # Shader
-        #
-
         shader_path = Path(__file__).parent / "shaders"
 
         self.shader = Shader(
             shader_path / "grid.vert",
             shader_path / "grid.frag",
         )
-
-        #
-        # Grid
-        #
 
         self.grid = Grid()
 
@@ -101,32 +92,34 @@ class Renderer:
 
         VertexArray.unbind()
 
-        #
-        # LDraw Library
-        #
-
         library_path = (
             Path(__file__).resolve().parents[1]
             / "ldraw"
             / "ldraw"
         )
 
-        self.library = LDrawLibrary(
-            library_path
-        )
+        try:
 
-        self.test_part = self.library.load(
-            "3001.dat"
-        )
+            self.library = LDrawLibrary(
+                library_path
+            )
 
-        #
-        # Build GPU mesh
-        #
+            self.test_part = self.library.load(
+                "3001.dat"
+            )
 
-        if self.test_part.has_geometry():
+            if self.test_part.has_geometry():
 
-            self.test_mesh = Mesh(
-                self.test_part.vertices
+                self.test_mesh = Mesh(
+                    self.test_part.vertices
+                )
+
+        except OSError as error:
+
+            logger.warning(
+                "LDraw test part could not be loaded, "
+                "continuing with grid only: %s",
+                error,
             )
 
     def resize(
@@ -168,8 +161,14 @@ class Renderer:
         )
 
         #
-        # Draw Grid
+        # Draw grid
         #
+
+        self.shader.set_color(
+            0.35,
+            0.35,
+            0.35,
+        )
 
         self.grid_vao.bind()
 
@@ -180,3 +179,17 @@ class Renderer:
         )
 
         VertexArray.unbind()
+
+        #
+        # Draw test brick
+        #
+
+        if self.test_mesh is not None:
+
+            self.shader.set_color(
+                0.80,
+                0.05,
+                0.05,
+            )
+
+            self.test_mesh.draw()
