@@ -28,6 +28,7 @@ from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
 from brickforge.render.vertex_buffer import VertexBuffer
+from brickforge.services.part_catalog import PartCatalog
 
 
 class Renderer:
@@ -97,18 +98,20 @@ class Renderer:
 
         self.brick_manager = BrickManager(library_path)
 
+        catalog = PartCatalog.from_seed()
+
         self.scene.add_brick(
-            SceneBrick(
+            SceneBrick.from_definition(
+                catalog.get("3001"),
                 id=1,
-                part_name="3001.dat",
                 position=glm.vec3(0.0, 0.0, 0.0),
             )
         )
 
         self.scene.add_brick(
-            SceneBrick(
+            SceneBrick.from_definition(
+                catalog.get("3003"),
                 id=2,
-                part_name="3003.dat",
                 position=glm.vec3(100.0, 0.0, 0.0),
                 rotation=glm.angleAxis(
                     glm.radians(45.0),
@@ -118,9 +121,9 @@ class Renderer:
         )
 
         self.scene.add_brick(
-            SceneBrick(
+            SceneBrick.from_definition(
+                catalog.get("3004"),
                 id=3,
-                part_name="3004.dat",
                 position=glm.vec3(200.0, 0.0, 0.0),
             )
         )

@@ -46,3 +46,8 @@ class BrickDefinition:
     weight_g: float | None = None
     aliases: list[str] = field(default_factory=list)
     family: str | None = None
+
+    @property
+    def part_name(self) -> str:
+        """Alias for ldraw_filename, matching SceneBrick.part_name."""
+        return self.ldraw_filename
