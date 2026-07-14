@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from brickforge.ldraw.part import Part
+from brickforge.ldraw.part import Part, PartReference
 
 
 class LDrawParser:
@@ -53,9 +53,45 @@ class LDrawParser:
                 elif record_type == "1":
                     #
                     # Type 1 subfile reference
-                    # (handled in the next Build Kit)
                     #
-                    continue
+                    # tokens[1]    colour (unused, same as type 3/4)
+                    # tokens[2:5]  translation (x, y, z)
+                    # tokens[5:14] 3x3 transform matrix (a-i, row-major)
+                    # tokens[14:]  referenced file name (may contain spaces)
+                    #
+
+                    translation = np.array(
+                        list(
+                            map(
+                                float,
+                                tokens[2:5],
+                            )
+                        ),
+                        dtype=np.float32,
+                    )
+
+                    matrix = np.array(
+                        list(
+                            map(
+                                float,
+                                tokens[5:14],
+                            )
+                        ),
+                        dtype=np.float32,
+                    ).reshape(3, 3)
+
+                    file_name = (
+                        " ".join(tokens[14:])
+                        .replace("\\", "/")
+                    )
+
+                    part.subfile_references.append(
+                        PartReference(
+                            file_name=file_name,
+                            translation=translation,
+                            matrix=matrix,
+                        )
+                    )
 
                 elif record_type == "2":
                     #

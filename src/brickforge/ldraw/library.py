@@ -47,6 +47,7 @@ class LDrawLibrary:
             self._cache[filename] = (
                 self.loader.load_part(
                     filename,
+                    resolve=self.load,
                 )
             )
 

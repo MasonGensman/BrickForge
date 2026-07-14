@@ -10,6 +10,21 @@ import numpy as np
 
 
 @dataclass(slots=True)
+class PartReference:
+    """
+    One LDraw Type-1 line: a reference to another part.
+
+    Stores the placement exactly as the LDraw file format expresses it -- a
+    translation vector and the native 3x3 transform matrix -- rather than an
+    internal 4x4 representation.
+    """
+
+    file_name: str
+    translation: np.ndarray
+    matrix: np.ndarray
+
+
+@dataclass(slots=True)
 class Part:
     """Represents one parsed LDraw part."""
 
@@ -21,6 +36,10 @@ class Part:
             0,
             dtype=np.float32,
         )
+    )
+
+    subfile_references: list[PartReference] = field(
+        default_factory=list
     )
 
     def has_geometry(self) -> bool:
