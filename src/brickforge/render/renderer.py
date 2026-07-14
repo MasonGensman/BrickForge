@@ -110,6 +110,10 @@ class Renderer:
                 id=2,
                 part_name="3003.dat",
                 position=glm.vec3(100.0, 0.0, 0.0),
+                rotation=glm.angleAxis(
+                    glm.radians(45.0),
+                    glm.vec3(0.0, 1.0, 0.0),
+                ),
             )
         )
 
@@ -192,7 +196,8 @@ class Renderer:
                 glm.translate(
                     glm.mat4(1.0),
                     brick.position,
-                ),
+                )
+                * glm.mat4_cast(brick.rotation),
             )
 
             self.shader.set_color(
