@@ -8,3 +8,4 @@ knows which concrete modes exist.
 """
 
 from brickforge.generation import flat_mosaic_registration  # noqa: F401
+from brickforge.generation import height_relief_registration  # noqa: F401
