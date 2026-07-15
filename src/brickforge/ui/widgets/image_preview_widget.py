@@ -13,6 +13,13 @@ no hardcoded knowledge of any specific mode -- only of the
 GenerationMode/SettingsPanel contract. It emits generate_requested for
 MainWindow to act on, matching how BrickLibraryWidget's brick_selected
 signal is already handled.
+
+Runs every imported image through the shared Image Preparation stage
+(Package_018) once, immediately after import. The resulting prepared
+ImageResource is the single object used for both the thumbnail and
+generation -- the preview always shows exactly what the selected mode
+will receive, by construction rather than by two call sites happening
+to agree.
 """
 
 from pathlib import Path
@@ -33,6 +40,8 @@ from PySide6.QtWidgets import (
 from brickforge.generation.generation_mode import GenerationMode
 from brickforge.generation.registry import list_modes
 from brickforge.io.image_manager import ImageManager
+from brickforge.io.image_resource import ImageResource
+from brickforge.preparation.image_preparation import prepare_image
 
 
 class ImagePreviewWidget(QDockWidget):
@@ -49,6 +58,8 @@ class ImagePreviewWidget(QDockWidget):
         )
 
         self.manager = ImageManager()
+
+        self._prepared_image: ImageResource | None = None
 
         self._current_mode: GenerationMode | None = None
         self._current_panel = None
@@ -172,7 +183,9 @@ class ImagePreviewWidget(QDockWidget):
             )
             return
 
-        self.display(resource)
+        self._prepared_image = prepare_image(resource)
+
+        self.display(self._prepared_image)
 
     def display(self, resource):
 
@@ -222,7 +235,7 @@ class ImagePreviewWidget(QDockWidget):
         settings = self._current_panel.get_settings()
 
         self.generate_requested.emit(
-            self.manager.current_image,
+            self._prepared_image,
             self._current_mode,
             settings,
         )

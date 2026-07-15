@@ -1,9 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow
 
-from brickforge.analysis.image_analysis import resize
 from brickforge.generation.generation_mode import GenerationMode
-from brickforge.io.image_resource import ImageResource
 from brickforge.palette.palette_engine import PaletteEngine
 from brickforge.services.part_catalog import PartCatalog
 from brickforge.ui.toolbar import create_toolbar
@@ -14,14 +12,6 @@ from brickforge.ui.widgets import (
     PropertiesWidget,
     ViewportWidget,
 )
-
-#
-# Generation may run at native image resolution -- a real imported photo
-# could be millions of pixels. A fixed, deterministic cap keeps "click
-# Generate" usable without any user-facing resize control, regardless of
-# which registered generation mode is selected.
-#
-MAX_GENERATION_DIMENSION = 48
 
 
 class MainWindow(QMainWindow):
@@ -106,8 +96,6 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            image = self._capped_image(image)
-
             palette = PaletteEngine(
                 library.library_path / "LDConfig.ldr"
             )
@@ -132,34 +120,3 @@ class MainWindow(QMainWindow):
             self.status.showMessage(
                 f"Generation failed: {error}"
             )
-
-    @staticmethod
-    def _capped_image(image: ImageResource) -> ImageResource:
-        """
-        Deterministically downscale an image to MAX_GENERATION_DIMENSION
-        on its longer side, preserving aspect ratio, before generation.
-        Returns the image unchanged if it's already within the cap.
-        """
-
-        if (
-            image.width <= MAX_GENERATION_DIMENSION
-            and image.height <= MAX_GENERATION_DIMENSION
-        ):
-            return image
-
-        scale = MAX_GENERATION_DIMENSION / max(
-            image.width,
-            image.height,
-        )
-
-        new_width = max(1, round(image.width * scale))
-        new_height = max(1, round(image.height * scale))
-
-        return ImageResource(
-            path=image.path,
-            width=new_width,
-            height=new_height,
-            format=image.format,
-            pixels=resize(image.pixels, new_width, new_height),
-            content_hash=image.content_hash,
-        )
