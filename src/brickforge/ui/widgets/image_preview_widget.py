@@ -6,12 +6,13 @@ button, a thumbnail, and basic info (dimensions, format, source hash). No
 OpenGL texture, no renderer involvement -- self-contained, owns its own
 ImageManager.
 
-Also hosts the Generate LEGO Mosaic controls (Package_014): a button and
-the three exposed GenerationSettings fields. This widget only verifies an
-image is loaded and builds a GenerationSettings from its own controls --
-it has no reference to the renderer or generation machinery itself and
-emits generate_requested for MainWindow to act on, matching how
-BrickLibraryWidget's brick_selected signal is already handled.
+Also hosts Generation Mode selection (Package_017): a mode dropdown
+populated entirely from the GenerationMode registry, whichever settings
+panel the selected mode provides, and a Generate button. This widget has
+no hardcoded knowledge of any specific mode -- only of the
+GenerationMode/SettingsPanel contract. It emits generate_requested for
+MainWindow to act on, matching how BrickLibraryWidget's brick_selected
+signal is already handled.
 """
 
 from pathlib import Path
@@ -19,7 +20,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDockWidget,
     QFileDialog,
@@ -30,18 +30,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from brickforge.generation.mosaic_generator import (
-    GenerationSettings,
-    OriginMode,
-)
+from brickforge.generation.generation_mode import GenerationMode
+from brickforge.generation.registry import list_modes
 from brickforge.io.image_manager import ImageManager
-from brickforge.services.part_catalog import PartCatalog
 
 
 class ImagePreviewWidget(QDockWidget):
-    """Import an image, configure mosaic settings, and request generation."""
+    """Import an image, select a generation mode, and request generation."""
 
-    generate_requested = Signal(object, object)
+    generate_requested = Signal(object, object, object)
 
     def __init__(self, parent=None):
         super().__init__("Image Preview", parent)
@@ -53,42 +50,38 @@ class ImagePreviewWidget(QDockWidget):
 
         self.manager = ImageManager()
 
+        self._current_mode: GenerationMode | None = None
+        self._current_panel = None
+
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(4, 4, 4, 4)
 
         self.import_button = QPushButton("Import Image...")
 
-        self.generate_button = QPushButton("Generate LEGO Mosaic")
+        self.mode_label = QLabel("Generation Mode:")
+        self.mode_combo = QComboBox()
 
-        self.part_label = QLabel("Part:")
-        self.part_combo = QComboBox()
+        for mode in list_modes():
+            self.mode_combo.addItem(mode.display_name, mode)
 
-        for definition in PartCatalog.from_seed().all():
-            self.part_combo.addItem(
-                definition.name,
-                definition.part_number,
-            )
+        settings_separator_top = QFrame()
+        settings_separator_top.setFrameShape(QFrame.HLine)
+        settings_separator_top.setFrameShadow(QFrame.Sunken)
 
-        default_index = self.part_combo.findData("3005")
+        self.settings_container = QWidget()
+        self.settings_layout = QVBoxLayout(self.settings_container)
+        self.settings_layout.setContentsMargins(0, 0, 0, 0)
 
-        if default_index != -1:
-            self.part_combo.setCurrentIndex(default_index)
+        settings_separator_bottom = QFrame()
+        settings_separator_bottom.setFrameShape(QFrame.HLine)
+        settings_separator_bottom.setFrameShadow(QFrame.Sunken)
 
-        self.transparency_label = QLabel("Transparency:")
-        self.skip_transparent_checkbox = QCheckBox(
-            "Skip Transparent Pixels"
-        )
-        self.skip_transparent_checkbox.setChecked(True)
+        self.generate_button = QPushButton("Generate LEGO")
 
-        self.origin_label = QLabel("Origin:")
-        self.origin_combo = QComboBox()
-        self.origin_combo.addItem("Centered", OriginMode.CENTERED)
-        self.origin_combo.addItem("Corner", OriginMode.CORNER)
-
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
+        preview_separator = QFrame()
+        preview_separator.setFrameShape(QFrame.HLine)
+        preview_separator.setFrameShadow(QFrame.Sunken)
 
         self.thumbnail = QLabel()
         self.thumbnail.setAlignment(Qt.AlignCenter)
@@ -101,14 +94,13 @@ class ImagePreviewWidget(QDockWidget):
         self.info.setWordWrap(True)
 
         layout.addWidget(self.import_button)
+        layout.addWidget(self.mode_label)
+        layout.addWidget(self.mode_combo)
+        layout.addWidget(settings_separator_top)
+        layout.addWidget(self.settings_container)
+        layout.addWidget(settings_separator_bottom)
         layout.addWidget(self.generate_button)
-        layout.addWidget(self.part_label)
-        layout.addWidget(self.part_combo)
-        layout.addWidget(self.transparency_label)
-        layout.addWidget(self.skip_transparent_checkbox)
-        layout.addWidget(self.origin_label)
-        layout.addWidget(self.origin_combo)
-        layout.addWidget(separator)
+        layout.addWidget(preview_separator)
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.info)
         layout.addStretch()
@@ -121,6 +113,40 @@ class ImagePreviewWidget(QDockWidget):
 
         self.generate_button.clicked.connect(
             self.generate_lego
+        )
+
+        self.mode_combo.currentIndexChanged.connect(
+            self._on_mode_changed
+        )
+
+        if self.mode_combo.count() > 0:
+            self._select_mode(self.mode_combo.itemData(0))
+
+    def _on_mode_changed(self, index):
+
+        if index < 0:
+            return
+
+        mode = self.mode_combo.itemData(index)
+
+        if mode is not None:
+            self._select_mode(mode)
+
+    def _select_mode(self, mode: GenerationMode):
+
+        self._current_mode = mode
+        self._current_panel = mode.create_settings_panel()
+
+        while self.settings_layout.count():
+
+            item = self.settings_layout.takeAt(0)
+            widget = item.widget()
+
+            if widget is not None:
+                widget.deleteLater()
+
+        self.settings_layout.addWidget(
+            self._current_panel.widget
         )
 
     def import_image(self):
@@ -183,15 +209,20 @@ class ImagePreviewWidget(QDockWidget):
             )
             return
 
-        settings = GenerationSettings(
-            default_part_number=self.part_combo.currentData(),
-            skip_transparent_pixels=(
-                self.skip_transparent_checkbox.isChecked()
-            ),
-            origin_mode=self.origin_combo.currentData(),
-        )
+        if (
+            self._current_mode is None
+            or self._current_panel is None
+        ):
+
+            self.info.setText(
+                "No generation mode is available."
+            )
+            return
+
+        settings = self._current_panel.get_settings()
 
         self.generate_requested.emit(
             self.manager.current_image,
+            self._current_mode,
             settings,
         )

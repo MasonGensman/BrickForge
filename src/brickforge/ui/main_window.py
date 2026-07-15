@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow
 
 from brickforge.analysis.image_analysis import resize
-from brickforge.generation.mosaic_generator import generate_mosaic
+from brickforge.generation.generation_mode import GenerationMode
 from brickforge.io.image_resource import ImageResource
 from brickforge.palette.palette_engine import PaletteEngine
 from brickforge.services.part_catalog import PartCatalog
@@ -16,12 +16,12 @@ from brickforge.ui.widgets import (
 )
 
 #
-# Generation runs at native image resolution with one brick per pixel
-# (Package_012) -- a real imported photo could be millions of pixels.
-# A fixed, deterministic cap keeps "click Generate" usable without any
-# user-facing resize control.
+# Generation may run at native image resolution -- a real imported photo
+# could be millions of pixels. A fixed, deterministic cap keeps "click
+# Generate" usable without any user-facing resize control, regardless of
+# which registered generation mode is selected.
 #
-MAX_MOSAIC_DIMENSION = 48
+MAX_GENERATION_DIMENSION = 48
 
 
 class MainWindow(QMainWindow):
@@ -50,8 +50,8 @@ class MainWindow(QMainWindow):
     def create_widgets(self):
         #
         # One PartCatalog, built once and shared by the Brick Library
-        # and Generate LEGO Mosaic -- avoids re-detecting/re-parsing the
-        # LDraw library on every generation click.
+        # and generation -- avoids re-detecting/re-parsing the LDraw
+        # library on every generation click.
         #
         self.catalog = PartCatalog.load_best_available()
 
@@ -84,7 +84,12 @@ class MainWindow(QMainWindow):
             f"Selected: {brick.name} ({brick.part_number})"
         )
 
-    def on_generate_lego(self, image, settings):
+    def on_generate_lego(
+        self,
+        image,
+        mode: GenerationMode,
+        settings,
+    ):
 
         renderer = self.viewport.renderer
 
@@ -107,7 +112,7 @@ class MainWindow(QMainWindow):
                 library.library_path / "LDConfig.ldr"
             )
 
-            scene = generate_mosaic(
+            scene = mode.generate(
                 image,
                 palette,
                 self.catalog,
@@ -131,18 +136,18 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _capped_image(image: ImageResource) -> ImageResource:
         """
-        Deterministically downscale an image to MAX_MOSAIC_DIMENSION on
-        its longer side, preserving aspect ratio, before generation.
+        Deterministically downscale an image to MAX_GENERATION_DIMENSION
+        on its longer side, preserving aspect ratio, before generation.
         Returns the image unchanged if it's already within the cap.
         """
 
         if (
-            image.width <= MAX_MOSAIC_DIMENSION
-            and image.height <= MAX_MOSAIC_DIMENSION
+            image.width <= MAX_GENERATION_DIMENSION
+            and image.height <= MAX_GENERATION_DIMENSION
         ):
             return image
 
-        scale = MAX_MOSAIC_DIMENSION / max(
+        scale = MAX_GENERATION_DIMENSION / max(
             image.width,
             image.height,
         )
