@@ -8,9 +8,14 @@ the full LDraw parts library both produce a list[BrickDefinition] and are
 loaded through the same PartCatalog constructor.
 """
 
+import logging
 from collections.abc import Iterable
 
 from brickforge.models.part_definition import BrickDefinition
+from brickforge.services.ldraw_catalog_builder import build_catalog_parts
+from brickforge.services.ldraw_library_locator import find_ldraw_library
+
+logger = logging.getLogger(__name__)
 
 #
 # Common LDraw color codes (verified against LDConfig.ldr):
@@ -151,6 +156,34 @@ class PartCatalog:
         """Build a PartCatalog from today's hand-curated seed list."""
 
         return cls(load_seed_bricks())
+
+    @classmethod
+    def load_best_available(cls) -> "PartCatalog":
+        """
+        Load a real LDraw-derived catalog if an installed library can be
+        found (LDRAW_LIBRARY_PATH override, then standard install
+        locations); otherwise falls back to the permanent seed catalog.
+        Never raises -- the seed catalog is always a safe fallback, and
+        the rest of the application does not need to know which source
+        produced the PartCatalog it received.
+        """
+
+        library_path = find_ldraw_library()
+
+        if library_path is not None:
+
+            parts = build_catalog_parts(library_path)
+
+            if parts:
+                return cls(parts)
+
+            logger.warning(
+                "LDraw library found at %s but no parts could be "
+                "loaded; falling back to the seed catalog.",
+                library_path,
+            )
+
+        return cls.from_seed()
 
     def all(self) -> list[BrickDefinition]:
         return list(self._parts.values())

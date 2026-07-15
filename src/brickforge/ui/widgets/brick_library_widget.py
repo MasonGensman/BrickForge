@@ -6,21 +6,19 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from brickforge.services.brick_database import BrickDatabase
 from brickforge.ui.widgets.search_bar import SearchBar
 
 
 class BrickLibraryWidget(QDockWidget):
     brick_selected = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, catalog, parent=None):
         super().__init__("Brick Library", parent)
 
         self.setMinimumWidth(250)
         self.setAllowedAreas(Qt.LeftDockWidgetArea)
 
-        self.database = BrickDatabase()
-        self.bricks = self.database.all()
+        self.bricks = catalog.all()
 
         container = QWidget()
         layout = QVBoxLayout(container)

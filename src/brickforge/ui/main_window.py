@@ -48,7 +48,14 @@ class MainWindow(QMainWindow):
         menu.addMenu("Help")
 
     def create_widgets(self):
-        self.library = BrickLibraryWidget(self)
+        #
+        # One PartCatalog, built once and shared by the Brick Library
+        # and Generate LEGO Mosaic -- avoids re-detecting/re-parsing the
+        # LDraw library on every generation click.
+        #
+        self.catalog = PartCatalog.load_best_available()
+
+        self.library = BrickLibraryWidget(self.catalog, self)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.library)
 
         self.properties = PropertiesWidget(self)
@@ -100,12 +107,10 @@ class MainWindow(QMainWindow):
                 library.library_path / "LDConfig.ldr"
             )
 
-            catalog = PartCatalog.from_seed()
-
             scene = generate_mosaic(
                 image,
                 palette,
-                catalog,
+                self.catalog,
                 settings,
             )
 

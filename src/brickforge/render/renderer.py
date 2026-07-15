@@ -104,35 +104,52 @@ class Renderer:
             library_path / "LDConfig.ldr"
         )
 
-        catalog = PartCatalog.from_seed()
+        catalog = PartCatalog.load_best_available()
 
-        self.scene.add_brick(
-            SceneBrick.from_definition(
-                catalog.get("3001"),
-                id=1,
-                position=glm.vec3(0.0, 0.0, 0.0),
-            )
-        )
-
-        self.scene.add_brick(
-            SceneBrick.from_definition(
-                catalog.get("3003"),
-                id=2,
-                position=glm.vec3(100.0, 0.0, 0.0),
-                rotation=glm.angleAxis(
+        demo_bricks = (
+            (
+                "3001",
+                1,
+                glm.vec3(0.0, 0.0, 0.0),
+                glm.quat(),
+            ),
+            (
+                "3003",
+                2,
+                glm.vec3(100.0, 0.0, 0.0),
+                glm.angleAxis(
                     glm.radians(45.0),
                     glm.vec3(0.0, 1.0, 0.0),
                 ),
-            )
+            ),
+            (
+                "3004",
+                3,
+                glm.vec3(200.0, 0.0, 0.0),
+                glm.quat(),
+            ),
         )
 
-        self.scene.add_brick(
-            SceneBrick.from_definition(
-                catalog.get("3004"),
-                id=3,
-                position=glm.vec3(200.0, 0.0, 0.0),
+        for (
+            part_number,
+            brick_id,
+            position,
+            rotation,
+        ) in demo_bricks:
+
+            definition = catalog.get(part_number)
+
+            if definition is None:
+                continue
+
+            self.scene.add_brick(
+                SceneBrick.from_definition(
+                    definition,
+                    id=brick_id,
+                    position=position,
+                    rotation=rotation,
+                )
             )
-        )
 
     def resize(
         self,

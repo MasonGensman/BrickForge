@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QDockWidget
 
-from brickforge.models.brick import Brick
+from brickforge.models.part_definition import BrickDefinition
 
 
 class PropertiesWidget(QDockWidget):
@@ -29,7 +29,15 @@ class PropertiesWidget(QDockWidget):
             "Select a brick from the library."
         )
 
-    def display_brick(self, brick: Brick):
+    def display_brick(self, brick: BrickDefinition):
+
+        colors = (
+            ", ".join(
+                str(code) for code in brick.available_colors
+            )
+            if brick.available_colors
+            else "Unknown"
+        )
 
         self.label.setText(
             f"""
@@ -42,10 +50,10 @@ Part Number:
 Category:
 {brick.category}
 
-Color:
-{brick.color}
+Dimensions:
+{brick.stud_width} x {brick.stud_length} studs
 
-Studs:
-{brick.studs}
+Available Colors:
+{colors}
 """
         )
