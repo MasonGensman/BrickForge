@@ -8,3 +8,4 @@ that knows which concrete optimizers exist.
 """
 
 from brickforge.optimization import brick_merge_optimizer  # noqa: F401
+from brickforge.optimization import hidden_brick_removal_optimizer  # noqa: F401
