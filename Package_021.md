@@ -182,6 +182,46 @@ docstring and confirmed by testing below.
 
 ---
 
+# Post-Package_020.5 Audit Amendment (2026-07-16)
+
+Documentation-only addendum. Package_021 predates Package_020.5, so at
+the time this package was originally built and verified there was no
+way to confirm its behavior against Package_020.5's later changes
+(the four-tier LDraw discovery order, and `Renderer`/`PartCatalog`
+now sharing that resolution instead of resolving independently). A
+follow-up audit re-issued this package's spec with three additional,
+more explicit verification requirements; no code changes were made or
+needed — `git diff 779af9b0 HEAD -- src/brickforge/optimization/` is
+empty.
+
+- **Explicit occupied-volume equality**: the original verification
+  confirmed the 3 seed-catalog merge cases matched by checking
+  `stud_width`/`stud_length`/`height_units` dimension equality. The
+  audit added a direct numeric check (`stud_width * stud_length *
+  height_units`) confirming the combined volume of two source bricks
+  exactly equals the target's own volume in all 3 cases (`2× 3005 =
+  48.0 = 1× 3004`; `2× 3004 = 96.0 = 1× 3010`; `2× 3003 = 192.0 = 1×
+  3001`) — exact, not approximate.
+- **Deterministic traversal-order verification**: the original
+  verification confirmed determinism as "identical input run twice →
+  identical output." The audit added a stronger check: the same four
+  bricks inserted into a `Scene` in forward, reversed, and shuffled
+  order all produce the identical merge result, confirming the
+  optimizer's output depends only on brick values/positions, never on
+  `Scene` insertion order.
+- **Package_020.5 compatibility**: confirmed `render/renderer.py`'s
+  `render()` draw loop is byte-identical since Package_021's commit —
+  Package_020.5 only touched `initialize()`'s path resolution, an
+  unrelated packaging concern. Also re-confirmed (originally verified
+  live during Package_020.5's own end-to-end test) that
+  `optimize_scene()` still runs correctly against the real,
+  Package_020.5-discovered catalog, correctly finding zero merge
+  opportunities there since that catalog's placeholder metadata gives
+  every part identical `stud_length` — a safe, expected degradation
+  already documented above, not a regression.
+
+---
+
 # Recommendations for Future Packages
 
 - **Wiring into the UI**: `MainWindow` calling `optimize_scene()`
