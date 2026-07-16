@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
+from brickforge.ldraw.library_layout import resolve_parts_directory
 from brickforge.ldraw.parser import LDrawParser
 from brickforge.ldraw.part import Part
 
@@ -26,7 +27,7 @@ class LDrawLoader:
     ):
 
         self.library_path = Path(library_path)
-        self.parts_path = self.library_path / "parts"
+        self.parts_path = resolve_parts_directory(self.library_path)
         self.primitives_path = self.library_path / "p"
 
         self.parser = LDrawParser()

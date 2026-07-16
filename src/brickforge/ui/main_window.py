@@ -1,8 +1,11 @@
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow
 
+from brickforge._version import window_title
 from brickforge.generation.generation_mode import GenerationMode
 from brickforge.palette.palette_engine import PaletteEngine
+from brickforge.resources import resource_path
 from brickforge.services.part_catalog import PartCatalog
 from brickforge.ui.toolbar import create_toolbar
 from brickforge.ui.widgets import (
@@ -25,7 +28,10 @@ class MainWindow(QMainWindow):
         self.connect_signals()
 
     def setup_window(self):
-        self.setWindowTitle("BrickForge v0.1.0")
+        self.setWindowTitle(window_title())
+        self.setWindowIcon(
+            QIcon(str(resource_path("ui", "resources", "icon.ico")))
+        )
         self.resize(1400, 800)
 
     def create_menu(self):

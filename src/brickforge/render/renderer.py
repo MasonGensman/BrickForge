@@ -4,8 +4,6 @@ Renderer V2
 Milestone 3.1
 """
 
-from pathlib import Path
-
 import glm
 
 from OpenGL.GL import (
@@ -29,6 +27,8 @@ from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
 from brickforge.render.vertex_buffer import VertexBuffer
+from brickforge.resources import resource_path
+from brickforge.services.ldraw_library_locator import find_ldraw_library
 from brickforge.services.part_catalog import PartCatalog
 
 
@@ -67,7 +67,7 @@ class Renderer:
             1.0,
         )
 
-        shader_path = Path(__file__).parent / "shaders"
+        shader_path = resource_path("render", "shaders")
 
         self.shader = Shader(
             shader_path / "grid.vert",
@@ -92,10 +92,18 @@ class Renderer:
 
         VertexArray.unbind()
 
+        #
+        # Same discovery order PartCatalog.load_best_available() uses
+        # (find_ldraw_library()'s four tiers) -- the renderer and the
+        # catalog always agree on which library is "best available",
+        # rather than each resolving a different path independently.
+        # find_ldraw_library() only returns None if even the bundled
+        # fallback is missing; resource_path() is the same last-resort
+        # fallback it would have found anyway.
+        #
         library_path = (
-            Path(__file__).resolve().parents[1]
-            / "ldraw"
-            / "ldraw"
+            find_ldraw_library()
+            or resource_path("ldraw", "ldraw")
         )
 
         self.brick_manager = BrickManager(library_path)

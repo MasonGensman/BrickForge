@@ -9,6 +9,8 @@ from OpenGL.GL import (
     glGetString,
 )
 
+from brickforge._version import display_version
+
 
 class RenderContext:
     """Owns renderer-wide OpenGL state."""
@@ -42,7 +44,7 @@ class RenderContext:
 
         print()
         print("=" * 60)
-        print(" BrickForge Renderer V2")
+        print(f" StudWorks {display_version()} -- Renderer V2")
         print("=" * 60)
         print("Vendor   :", self.vendor)
         print("Renderer :", self.renderer)

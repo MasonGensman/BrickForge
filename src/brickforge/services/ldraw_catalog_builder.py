@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from brickforge.ldraw.library import LDrawLibrary
+from brickforge.ldraw.library_layout import resolve_parts_directory
 from brickforge.models.part_definition import BoundingBox, BrickDefinition
 
 logger = logging.getLogger(__name__)
@@ -55,15 +56,17 @@ def build_catalog_parts(
     library_path: str | Path,
 ) -> list[BrickDefinition]:
     """
-    Parse every top-level part in library_path/"parts" (not recursing
-    into parts/s/ subparts, which aren't standalone catalog items) and
-    build a BrickDefinition for each. Never raises -- returns an empty
-    list if the library or its parts directory can't be opened, so a
-    caller can fall back to the seed catalog.
+    Parse every top-level part in the library's parts directory ("parts",
+    the official LDraw name, or "part" as a fallback -- see
+    ldraw.library_layout; not recursing into parts/s/ subparts, which
+    aren't standalone catalog items) and build a BrickDefinition for
+    each. Never raises -- returns an empty list if the library or its
+    parts directory can't be opened, so a caller can fall back to the
+    seed catalog.
     """
 
     library_path = Path(library_path)
-    parts_path = library_path / "parts"
+    parts_path = resolve_parts_directory(library_path)
 
     if not parts_path.is_dir():
 
