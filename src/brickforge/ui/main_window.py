@@ -8,6 +8,7 @@ from brickforge.generation.generation_mode import GenerationMode
 from brickforge.palette.palette_engine import PaletteEngine
 from brickforge.project.project import ProjectFileError
 from brickforge.resources import resource_path
+from brickforge.selection.selection_manager import SelectionManager
 from brickforge.serialization.schema import SceneSerializationError
 from brickforge.services.part_catalog import PartCatalog
 from brickforge.ui.toolbar import create_toolbar, project_manager
@@ -76,6 +77,13 @@ class MainWindow(QMainWindow):
         self.project_manager.new_project()
 
         #
+        # Owns the single currently-selected SceneBrick.id (Package_027).
+        # Renderer only ever consumes whatever id is pushed into it via
+        # set_selected_id() -- it has no reference to this manager.
+        #
+        self.selection_manager = SelectionManager()
+
+        #
         # One PartCatalog, built once and shared by the Brick Library
         # and generation -- avoids re-detecting/re-parsing the LDraw
         # library on every generation click.
@@ -106,10 +114,39 @@ class MainWindow(QMainWindow):
             self.on_generate_lego
         )
 
+        self.viewport.brick_clicked.connect(self.on_brick_clicked)
+
     def on_brick_selected(self, brick):
         self.status.showMessage(
             f"Selected: {brick.name} ({brick.part_number})"
         )
+
+    def on_brick_clicked(self, brick_id):
+
+        if brick_id is None:
+
+            self.selection_manager.clear()
+            self.status.showMessage("Selection cleared.")
+
+        else:
+
+            self.selection_manager.select(brick_id)
+
+            #
+            # pick() just found this id by intersecting the current
+            # scene, so it's guaranteed to still be there.
+            #
+            brick = self.viewport.renderer.scene.get(brick_id)
+
+            self.status.showMessage(
+                f"Selected brick #{brick_id} ({brick.part_name})."
+            )
+
+        self.viewport.renderer.set_selected_id(
+            self.selection_manager.selected_id()
+        )
+
+        self.viewport.update()
 
     def on_generate_lego(
         self,
@@ -158,6 +195,16 @@ class MainWindow(QMainWindow):
             self.project_manager.current_project.scene = scene
             self.project_manager.current_project.mark_dirty()
 
+            #
+            # A freshly generated Scene has its own fresh ids -- a
+            # previously-selected id could otherwise silently point
+            # at an unrelated brick that happens to share the same
+            # id. Selection is only ever valid for the currently
+            # active Scene (Package_027).
+            #
+            self.selection_manager.clear()
+            renderer.set_selected_id(None)
+
             self.status.showMessage(
                 f"Generated {len(list(scene))} bricks."
             )
@@ -173,6 +220,10 @@ class MainWindow(QMainWindow):
         self.project_manager.new_project()
 
         self.viewport.renderer.set_scene(Scene())
+
+        self.selection_manager.clear()
+        self.viewport.renderer.set_selected_id(None)
+
         self.viewport.update()
 
         self.status.showMessage("New project created.")
@@ -200,6 +251,10 @@ class MainWindow(QMainWindow):
             return
 
         self.viewport.renderer.set_scene(project.scene)
+
+        self.selection_manager.clear()
+        self.viewport.renderer.set_selected_id(None)
+
         self.viewport.update()
 
         self.status.showMessage(

@@ -10,11 +10,15 @@ from OpenGL.GL import (
     GL_COLOR_BUFFER_BIT,
     GL_DEPTH_BUFFER_BIT,
     GL_DEPTH_TEST,
+    GL_FILL,
+    GL_FRONT_AND_BACK,
+    GL_LINE,
     GL_LINES,
     glClear,
     glClearColor,
     glDrawArrays,
     glEnable,
+    glPolygonMode,
 )
 
 from brickforge.engine.brick_manager import BrickManager
@@ -23,6 +27,7 @@ from brickforge.engine.scene_brick import SceneBrick
 from brickforge.render.camera import Camera
 from brickforge.render.color_resolver import ColorResolver
 from brickforge.render.grid import Grid
+from brickforge.render.picking import ray_intersects_aabb, screen_to_ray
 from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
@@ -30,6 +35,13 @@ from brickforge.render.vertex_buffer import VertexBuffer
 from brickforge.resources import resource_path
 from brickforge.services.ldraw_library_locator import find_ldraw_library
 from brickforge.services.part_catalog import PartCatalog
+
+#
+# Distinct from every default LDConfig color this app currently uses
+# (black/blue/green/red/yellow/white, see color_resolver.py) so the
+# selection highlight is never confused with a brick's real color.
+#
+_SELECTION_HIGHLIGHT_RGB = (0.1, 0.95, 1.0)
 
 
 class Renderer:
@@ -50,6 +62,15 @@ class Renderer:
         self.scene = Scene()
         self.brick_manager = None
         self.color_resolver = None
+
+        #
+        # The only selection state Renderer holds -- an id to draw a
+        # highlight for, nothing more. Renderer has no reference to
+        # SelectionManager and no way to reach for one; MainWindow
+        # pushes the current selection in via set_selected_id(),
+        # mirroring how set_scene() already works (Package_027).
+        #
+        self.selected_id: int | None = None
 
         self.width = 1
         self.height = 1
@@ -179,6 +200,92 @@ class Renderer:
 
         self.scene = scene
 
+    def set_selected_id(
+        self,
+        brick_id: int | None,
+    ) -> None:
+        """Replace the id Renderer highlights. No validation -- the caller
+        (MainWindow) is the one that owns and validates selection state."""
+
+        self.selected_id = brick_id
+
+    def pick(
+        self,
+        screen_x: float,
+        screen_y: float,
+    ) -> int | None:
+        """
+        Cast a ray from a screen-space click and return the id of the
+        nearest SceneBrick it hits, or None. Pure CPU ray/AABB test
+        against each brick's cached local-space bounding box
+        (BrickManager.aabb_for) -- no ID buffers, no offscreen render
+        passes, no acceleration structure. The model matrix is rigid
+        (rotation + translation only, no scale anywhere in this
+        codebase), so transforming the ray into a brick's local space
+        preserves distances exactly -- the local-space hit distance
+        is numerically identical to the world-space one, safe to
+        compare directly across bricks to find the nearest hit.
+        """
+
+        if self.brick_manager is None:
+            return None
+
+        ray_origin, ray_direction = screen_to_ray(
+            screen_x,
+            screen_y,
+            self.width,
+            self.height,
+            self.camera.view_matrix(),
+            self.camera.projection_matrix(
+                self.width,
+                self.height,
+            ),
+        )
+
+        nearest_id = None
+        nearest_t = None
+
+        for brick in self.scene:
+
+            aabb = self.brick_manager.aabb_for(brick.part_name)
+
+            if aabb is None:
+                continue
+
+            box_min, box_max = aabb
+
+            inverse_model = glm.inverse(
+                glm.translate(
+                    glm.mat4(1.0),
+                    brick.position,
+                )
+                * glm.mat4_cast(brick.rotation)
+            )
+
+            local_origin = glm.vec3(
+                inverse_model * glm.vec4(ray_origin, 1.0)
+            )
+
+            local_direction = glm.vec3(
+                inverse_model * glm.vec4(ray_direction, 0.0)
+            )
+
+            hit_t = ray_intersects_aabb(
+                local_origin,
+                local_direction,
+                box_min,
+                box_max,
+            )
+
+            if hit_t is not None and (
+                nearest_t is None or hit_t < nearest_t
+            ):
+
+                nearest_t = hit_t
+                nearest_id = brick.id
+
+        return nearest_id
+
     def render(self):
 
         self.context.validate()
@@ -254,3 +361,27 @@ class Renderer:
             )
 
             mesh.draw()
+
+            #
+            # Selection highlight: redraw the same mesh as a
+            # wireframe overlay in a distinct color. Renderer only
+            # ever compares against self.selected_id -- it has no
+            # knowledge of SelectionManager (Package_027).
+            #
+            if brick.id == self.selected_id:
+
+                glPolygonMode(
+                    GL_FRONT_AND_BACK,
+                    GL_LINE,
+                )
+
+                self.shader.set_color(
+                    *_SELECTION_HIGHLIGHT_RGB
+                )
+
+                mesh.draw()
+
+                glPolygonMode(
+                    GL_FRONT_AND_BACK,
+                    GL_FILL,
+                )

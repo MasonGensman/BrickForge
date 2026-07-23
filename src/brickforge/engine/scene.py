@@ -30,6 +30,19 @@ class Scene:
             if brick.id != brick_id
         ]
 
+    def get(
+        self,
+        brick_id: int,
+    ) -> SceneBrick | None:
+        """Look up a brick by id. Read-only -- never mutates the Scene."""
+
+        for brick in self.bricks:
+
+            if brick.id == brick_id:
+                return brick
+
+        return None
+
     def clear(self) -> None:
 
         self.bricks = []

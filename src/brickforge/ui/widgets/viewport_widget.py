@@ -3,7 +3,7 @@ BrickForge Viewport Widget
 Renderer V2
 """
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
@@ -12,6 +12,15 @@ from brickforge.render.renderer import Renderer
 
 class ViewportWidget(QOpenGLWidget):
     """Main OpenGL viewport."""
+
+    #
+    # Emits the picked SceneBrick.id, or None for a click on empty
+    # space -- MainWindow owns SelectionManager and reacts to this,
+    # matching BrickLibraryWidget.brick_selected's existing shape
+    # (widgets emit, MainWindow connects and reacts; a widget never
+    # manipulates MainWindow state directly). Package_027.
+    #
+    brick_clicked = Signal(object)
 
     def __init__(self):
         super().__init__()
@@ -59,6 +68,17 @@ class ViewportWidget(QOpenGLWidget):
         self.renderer.render()
 
     def mousePressEvent(self, event):
+
+        if event.button() == Qt.LeftButton:
+
+            brick_id = self.renderer.pick(
+                event.position().x(),
+                event.position().y(),
+            )
+
+            self.brick_clicked.emit(brick_id)
+
+            return
 
         if event.button() in (
             Qt.RightButton,
