@@ -7,9 +7,8 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from brickforge.render.renderer import Renderer, ScenePreview
-from brickforge.tools.move_tool import MoveTool
-from brickforge.tools.rotate_tool import RotateTool
+from brickforge.render.renderer import Renderer
+from brickforge.tools.active_tool_manager import ActiveToolManager
 
 
 class ViewportWidget(QOpenGLWidget):
@@ -25,19 +24,14 @@ class ViewportWidget(QOpenGLWidget):
     brick_clicked = Signal(object)
 
     #
-    # Emits (brick_id, new_position) once a brick-drag completes with
-    # real movement -- MainWindow owns the Transform package and the
+    # Emits a ToolResult once an editing tool's drag completes with a
+    # real change -- MainWindow owns the Transform package and the
     # scene activation helper, and reacts to this the same way it
-    # reacts to brick_clicked. Package_029.
+    # reacts to brick_clicked. Replaces the separate brick_moved/
+    # brick_rotated signals from Packages 029-030, which had grown
+    # near-identical MainWindow handlers (Package_031).
     #
-    brick_moved = Signal(object, object)
-
-    #
-    # Emits (brick_id, new_rotation) once a brick-rotation drag
-    # completes with a real angle -- same shape as brick_moved,
-    # reacted to the same way in MainWindow. Package_030.
-    #
-    brick_rotated = Signal(object, object)
+    brick_transformed = Signal(object)
 
     def __init__(self):
         super().__init__()
@@ -46,8 +40,7 @@ class ViewportWidget(QOpenGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
 
         self.renderer = Renderer()
-        self.move_tool = MoveTool()
-        self.rotate_tool = RotateTool()
+        self.active_tool_manager = ActiveToolManager()
 
         #
         # Create timer but don't start it until
@@ -88,109 +81,44 @@ class ViewportWidget(QOpenGLWidget):
 
     def mousePressEvent(self, event):
 
+        brick_id = self.renderer.pick(
+            event.position().x(),
+            event.position().y(),
+        )
+
+        if self.active_tool_manager.try_begin(
+            event.button(),
+            self.renderer,
+            brick_id,
+            event.position().x(),
+            event.position().y(),
+        ):
+            return
+
         if event.button() == Qt.LeftButton:
-
-            brick_id = self.renderer.pick(
-                event.position().x(),
-                event.position().y(),
-            )
-
-            if (
-                brick_id is not None
-                and brick_id == self.renderer.selected_id
-            ):
-
-                #
-                # Pressing the already-selected brick begins a move
-                # drag instead of re-selecting it -- selection is
-                # unchanged, so no signal is emitted here.
-                #
-                brick = self.renderer.scene.get(brick_id)
-
-                grab_point = self.renderer.project_to_ground(
-                    event.position().x(),
-                    event.position().y(),
-                    brick.position.y,
-                )
-
-                if grab_point is not None:
-                    self.move_tool.begin(brick, grab_point)
-
-                return
 
             self.brick_clicked.emit(brick_id)
 
             return
 
-        if event.button() == Qt.RightButton:
-
-            brick_id = self.renderer.pick(
-                event.position().x(),
-                event.position().y(),
-            )
-
-            if (
-                brick_id is not None
-                and brick_id == self.renderer.selected_id
-            ):
-
-                #
-                # Pressing the already-selected brick begins a rotate
-                # drag instead of arming camera orbit -- mirrors how
-                # Left-button was extended for MoveTool (Package_029),
-                # now on Right-button for RotateTool (Package_030).
-                #
-                brick = self.renderer.scene.get(brick_id)
-
-                self.rotate_tool.begin(
-                    brick,
-                    event.position().x(),
-                )
-
-                return
-
-            self.last_mouse_position = event.position()
-
-            return
-
-        if event.button() == Qt.MiddleButton:
+        if event.button() in (
+            Qt.RightButton,
+            Qt.MiddleButton,
+        ):
             self.last_mouse_position = event.position()
 
     def mouseReleaseEvent(self, event):
 
-        if self.move_tool.is_dragging:
+        if self.active_tool_manager.is_dragging:
 
-            grab_point = self.renderer.project_to_ground(
+            result = self.active_tool_manager.finish(
+                self.renderer,
                 event.position().x(),
                 event.position().y(),
-                self.move_tool.plane_y,
             )
 
-            if grab_point is not None:
-                result = self.move_tool.finish(grab_point)
-            else:
-                self.move_tool.cancel()
-                result = None
-
-            self.renderer.set_preview(None)
-
             if result is not None:
-                self.brick_moved.emit(*result)
-
-            self.update()
-
-            return
-
-        if self.rotate_tool.is_dragging:
-
-            result = self.rotate_tool.finish(
-                event.position().x()
-            )
-
-            self.renderer.set_preview(None)
-
-            if result is not None:
-                self.brick_rotated.emit(*result)
+                self.brick_transformed.emit(result)
 
             self.update()
 
@@ -204,42 +132,12 @@ class ViewportWidget(QOpenGLWidget):
 
     def mouseMoveEvent(self, event):
 
-        if self.move_tool.is_dragging:
+        if self.active_tool_manager.is_dragging:
 
-            grab_point = self.renderer.project_to_ground(
+            self.active_tool_manager.update(
+                self.renderer,
                 event.position().x(),
                 event.position().y(),
-                self.move_tool.plane_y,
-            )
-
-            if grab_point is not None:
-
-                brick = self.renderer.scene.get(self.move_tool.brick_id)
-
-                self.renderer.set_preview(
-                    ScenePreview(
-                        brick_id=self.move_tool.brick_id,
-                        position=self.move_tool.update(grab_point),
-                        rotation=brick.rotation,
-                    )
-                )
-
-                self.update()
-
-            return
-
-        if self.rotate_tool.is_dragging:
-
-            brick = self.renderer.scene.get(self.rotate_tool.brick_id)
-
-            self.renderer.set_preview(
-                ScenePreview(
-                    brick_id=self.rotate_tool.brick_id,
-                    position=brick.position,
-                    rotation=self.rotate_tool.update(
-                        event.position().x()
-                    ),
-                )
             )
 
             self.update()

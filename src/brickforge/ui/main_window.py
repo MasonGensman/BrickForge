@@ -118,8 +118,7 @@ class MainWindow(QMainWindow):
         )
 
         self.viewport.brick_clicked.connect(self.on_brick_clicked)
-        self.viewport.brick_moved.connect(self.on_brick_moved)
-        self.viewport.brick_rotated.connect(self.on_brick_rotated)
+        self.viewport.brick_transformed.connect(self.on_brick_transformed)
 
     def on_brick_selected(self, brick):
         self.status.showMessage(
@@ -153,13 +152,20 @@ class MainWindow(QMainWindow):
 
         self.viewport.update()
 
-    def on_brick_moved(self, brick_id, new_position):
+    def on_brick_transformed(self, result):
+        """
+        Handles the outcome of any completed editing-tool interaction
+        (Move, Rotate, and whatever future tool produces a
+        ToolResult) -- one generic handler in place of the
+        near-identical on_brick_moved/on_brick_rotated bodies
+        Packages 029-030 had each written separately (Package_031).
+        """
 
         scene = self.viewport.renderer.scene
 
         updated_brick = dataclasses.replace(
-            scene.get(brick_id),
-            position=new_position,
+            scene.get(result.brick_id),
+            **{result.field: result.value},
         )
 
         try:
@@ -168,51 +174,20 @@ class MainWindow(QMainWindow):
         except TransformError as error:
 
             self.status.showMessage(
-                f"Move failed: {error}"
+                f"{result.verb} failed: {error}"
             )
             return
 
         #
         # Package_028: set_current_scene() clears selection only if
         # the selected id is no longer present -- replace_brick()
-        # preserves every id, so the moved brick stays selected.
+        # preserves every id, so the transformed brick stays selected.
         #
         self.set_current_scene(new_scene)
         self.project_manager.current_project.mark_dirty()
 
         self.status.showMessage(
-            f"Moved brick #{brick_id}."
-        )
-
-    def on_brick_rotated(self, brick_id, new_rotation):
-
-        scene = self.viewport.renderer.scene
-
-        updated_brick = dataclasses.replace(
-            scene.get(brick_id),
-            rotation=new_rotation,
-        )
-
-        try:
-            new_scene = replace_brick(scene, updated_brick)
-
-        except TransformError as error:
-
-            self.status.showMessage(
-                f"Rotate failed: {error}"
-            )
-            return
-
-        #
-        # Package_028: set_current_scene() clears selection only if
-        # the selected id is no longer present -- replace_brick()
-        # preserves every id, so the rotated brick stays selected.
-        #
-        self.set_current_scene(new_scene)
-        self.project_manager.current_project.mark_dirty()
-
-        self.status.showMessage(
-            f"Rotated brick #{brick_id}."
+            f"{result.verb} brick #{result.brick_id}."
         )
 
     def set_current_scene(
