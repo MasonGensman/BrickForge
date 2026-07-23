@@ -279,6 +279,99 @@ class FinishTests(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TryDeleteTests(unittest.TestCase):
+
+    def test_middle_button_on_selected_brick_returns_a_removal_result(self):
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=7)
+
+        result = manager.try_delete(Qt.MiddleButton, renderer, 7)
+
+        self.assertIsInstance(result, ToolResult)
+        self.assertEqual(result.brick_id, 7)
+        self.assertEqual(result.verb, "Deleted")
+        self.assertTrue(result.is_removal)
+        self.assertIsNone(result.field)
+        self.assertIsNone(result.value)
+
+    def test_try_delete_does_not_touch_active_state(self):
+        """Delete has no drag lifecycle -- it never arms self._active."""
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=7)
+
+        manager.try_delete(Qt.MiddleButton, renderer, 7)
+
+        self.assertFalse(manager.is_dragging)
+        self.assertIsNone(manager.active_tool_name)
+
+    def test_left_button_does_not_delete(self):
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=7)
+
+        result = manager.try_delete(Qt.LeftButton, renderer, 7)
+
+        self.assertIsNone(result)
+
+    def test_right_button_does_not_delete(self):
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=7)
+
+        result = manager.try_delete(Qt.RightButton, renderer, 7)
+
+        self.assertIsNone(result)
+
+    def test_no_brick_picked_declines(self):
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=7)
+
+        result = manager.try_delete(Qt.MiddleButton, renderer, None)
+
+        self.assertIsNone(result)
+
+    def test_picked_brick_not_selected_declines(self):
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=99)
+
+        result = manager.try_delete(Qt.MiddleButton, renderer, 7)
+
+        self.assertIsNone(result)
+
+    def test_no_selection_declines(self):
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(_scene_with_one_brick(brick_id=7), selected_id=None)
+
+        result = manager.try_delete(Qt.MiddleButton, renderer, 7)
+
+        self.assertIsNone(result)
+
+    def test_declines_while_another_tool_is_already_dragging(self):
+        """Guards against deleting a brick out from under an active
+        Move/Rotate drag."""
+
+        manager = ActiveToolManager()
+        renderer = FakeRenderer(
+            _scene_with_one_brick(brick_id=7), selected_id=7,
+            ground_hit=glm.vec3(0.0, 0.0, 0.0),
+        )
+
+        manager.try_begin(Qt.LeftButton, renderer, 7, 10.0, 10.0)
+        self.assertTrue(manager.is_dragging)
+
+        result = manager.try_delete(Qt.MiddleButton, renderer, 7)
+
+        self.assertIsNone(result)
+        # The in-progress move drag must be unaffected.
+        self.assertTrue(manager.is_dragging)
+        self.assertEqual(manager.active_tool_name, "move")
+
+
 class CancelTests(unittest.TestCase):
 
     def test_cancel_clears_move_drag(self):

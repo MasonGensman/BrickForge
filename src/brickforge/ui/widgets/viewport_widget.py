@@ -86,6 +86,18 @@ class ViewportWidget(QOpenGLWidget):
             event.position().y(),
         )
 
+        delete_result = self.active_tool_manager.try_delete(
+            event.button(),
+            self.renderer,
+            brick_id,
+        )
+
+        if delete_result is not None:
+
+            self.brick_transformed.emit(delete_result)
+
+            return
+
         if self.active_tool_manager.try_begin(
             event.button(),
             self.renderer,

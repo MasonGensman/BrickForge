@@ -1,10 +1,10 @@
 """
-StudWorks Scene Transform Tests (Package_028)
+StudWorks Scene Transform Tests (Package_028, extended in Package_032)
 
 Pure unit tests for transform/scene_transform.py -- no Qt, no OpenGL,
-no SelectionManager/Renderer/Project. replace_brick() is a stateless
-Scene -> Scene function; these tests verify its immutability contract
-directly.
+no SelectionManager/Renderer/Project. replace_brick()/remove_brick()
+are stateless Scene -> Scene functions; these tests verify their
+immutability contracts directly.
 """
 
 import dataclasses
@@ -14,7 +14,11 @@ import glm
 
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
-from brickforge.transform.scene_transform import TransformError, replace_brick
+from brickforge.transform.scene_transform import (
+    TransformError,
+    remove_brick,
+    replace_brick,
+)
 
 
 def _brick(brick_id, x=0.0, color_code=4):
@@ -201,6 +205,127 @@ class ReplaceBrickTests(unittest.TestCase):
 
         with self.assertRaises(TransformError):
             replace_brick(scene, phantom)
+
+
+class RemoveBrickTests(unittest.TestCase):
+
+    def test_returns_a_different_scene_object(self):
+
+        scene = _three_brick_scene()
+
+        result = remove_brick(scene, 1)
+
+        self.assertIsNot(result, scene)
+        self.assertIsNot(result.bricks, scene.bricks)
+
+    def test_original_scene_is_unchanged(self):
+
+        scene = _three_brick_scene()
+        original_bricks = list(scene)
+
+        remove_brick(scene, 1)
+
+        self.assertEqual(list(scene), original_bricks)
+        self.assertEqual(len(list(scene)), 3)
+
+    def test_target_brick_is_removed(self):
+
+        scene = _three_brick_scene()
+
+        result = remove_brick(scene, 1)
+
+        self.assertIsNone(result.get(1))
+
+    def test_other_bricks_preserved_by_reference(self):
+
+        scene = _three_brick_scene()
+        brick_0 = scene.get(0)
+        brick_2 = scene.get(2)
+
+        result = remove_brick(scene, 1)
+
+        self.assertIs(result.get(0), brick_0)
+        self.assertIs(result.get(2), brick_2)
+
+    def test_id_set_shrinks_by_exactly_the_removed_id(self):
+        """Unlike replace_brick, the id set is NOT preserved -- it's a
+        strict subset missing exactly the removed id."""
+
+        scene = _three_brick_scene()
+
+        result = remove_brick(scene, 1)
+
+        self.assertEqual({b.id for b in result}, {0, 2})
+
+    def test_brick_count_decreases_by_one(self):
+
+        scene = _three_brick_scene()
+
+        result = remove_brick(scene, 1)
+
+        self.assertEqual(len(list(result)), len(list(scene)) - 1)
+
+    def test_order_is_preserved(self):
+
+        scene = _three_brick_scene()
+
+        result = remove_brick(scene, 1)
+
+        self.assertEqual([b.id for b in result], [0, 2])
+
+    def test_invalid_id_raises_transform_error(self):
+
+        scene = _three_brick_scene()
+
+        with self.assertRaises(TransformError):
+            remove_brick(scene, 999)
+
+    def test_invalid_id_does_not_change_original_scene(self):
+
+        scene = _three_brick_scene()
+        original_count = len(list(scene))
+
+        try:
+            remove_brick(scene, 999)
+        except TransformError:
+            pass
+
+        self.assertEqual(len(list(scene)), original_count)
+
+    def test_removing_the_last_brick_produces_a_valid_empty_scene(self):
+
+        scene = Scene()
+        scene.add_brick(_brick(0))
+
+        result = remove_brick(scene, 0)
+
+        self.assertEqual(list(result), [])
+        self.assertEqual(len(list(result)), 0)
+
+    def test_repeated_removal_of_the_same_id_raises_the_second_time(self):
+        """Defense-in-depth: even though the UI layer can't naturally
+        reach this (selection clears the instant the first delete
+        commits), the engine itself must independently refuse a
+        second removal of an id that's already gone."""
+
+        scene = _three_brick_scene()
+
+        first_result = remove_brick(scene, 1)
+
+        with self.assertRaises(TransformError):
+            remove_brick(first_result, 1)
+
+        # The original 3-brick scene is still untouched by either call.
+        self.assertEqual(len(list(scene)), 3)
+
+    def test_deterministic(self):
+
+        def run():
+            scene = _three_brick_scene()
+            result = remove_brick(scene, 1)
+            return [b.id for b in result]
+
+        self.assertEqual(run(), run())
 
 
 if __name__ == "__main__":

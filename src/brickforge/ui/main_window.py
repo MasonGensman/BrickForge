@@ -13,7 +13,11 @@ from brickforge.resources import resource_path
 from brickforge.selection.selection_manager import SelectionManager
 from brickforge.serialization.schema import SceneSerializationError
 from brickforge.services.part_catalog import PartCatalog
-from brickforge.transform.scene_transform import TransformError, replace_brick
+from brickforge.transform.scene_transform import (
+    TransformError,
+    remove_brick,
+    replace_brick,
+)
 from brickforge.ui.toolbar import create_toolbar, project_manager
 from brickforge.ui.widgets import (
     BrickLibraryWidget,
@@ -155,21 +159,28 @@ class MainWindow(QMainWindow):
     def on_brick_transformed(self, result):
         """
         Handles the outcome of any completed editing-tool interaction
-        (Move, Rotate, and whatever future tool produces a
-        ToolResult) -- one generic handler in place of the
-        near-identical on_brick_moved/on_brick_rotated bodies
-        Packages 029-030 had each written separately (Package_031).
+        (Move, Rotate, Delete, and whatever future tool produces a
+        ToolResult) -- one generic handler in place of separate
+        per-tool handlers (Package_031, extended for removal in
+        Package_032).
         """
 
         scene = self.viewport.renderer.scene
 
-        updated_brick = dataclasses.replace(
-            scene.get(result.brick_id),
-            **{result.field: result.value},
-        )
-
         try:
-            new_scene = replace_brick(scene, updated_brick)
+
+            if result.is_removal:
+
+                new_scene = remove_brick(scene, result.brick_id)
+
+            else:
+
+                updated_brick = dataclasses.replace(
+                    scene.get(result.brick_id),
+                    **{result.field: result.value},
+                )
+
+                new_scene = replace_brick(scene, updated_brick)
 
         except TransformError as error:
 
@@ -180,8 +191,11 @@ class MainWindow(QMainWindow):
 
         #
         # Package_028: set_current_scene() clears selection only if
-        # the selected id is no longer present -- replace_brick()
-        # preserves every id, so the transformed brick stays selected.
+        # the selected id is no longer present. replace_brick()
+        # preserves every id, so a moved/rotated brick stays selected;
+        # remove_brick() drops exactly the deleted id, so selection
+        # clears automatically -- no Delete-specific selection logic
+        # needed here (Package_032).
         #
         self.set_current_scene(new_scene)
         self.project_manager.current_project.mark_dirty()

@@ -28,6 +28,15 @@ both prior packages explicitly verified and valued. What genuinely
 already-duplicated MainWindow handlers, not invented for this
 package -- is captured in ToolResult below: both tools produce
 "one brick id, one changed SceneBrick field, one new value."
+
+Delete (Package_032) doesn't fit that drag lifecycle at all -- it has
+no continuous parameter to preview, so it isn't routed through
+try_begin/update/finish, and isn't backed by MoveTool/RotateTool-style
+tool objects (there's no per-drag state to track: it either fires on
+the press or it doesn't). ToolResult grows two optional fields to
+represent "no field changed, this brick was removed" rather than
+gaining a parallel result type -- both remain valid, both flow through
+the same brick_transformed signal and the same MainWindow handler.
 """
 
 from dataclasses import dataclass
@@ -42,17 +51,22 @@ from brickforge.tools.rotate_tool import RotateTool
 @dataclass(frozen=True, slots=True)
 class ToolResult:
     """
-    The outcome of a completed tool interaction: replace one field of
-    one SceneBrick. Fits every tool that exists today (Move changes
-    position, Rotate changes rotation) because both are single-field
-    replacements -- not a guess at what a future Delete/Duplicate
-    tool (which don't fit this shape at all) will need.
+    The outcome of a completed tool interaction: either replace one
+    field of one SceneBrick (field/value set -- Move changes
+    position, Rotate changes rotation), or remove the brick entirely
+    (field/value left at their default None -- Delete). A future
+    Duplicate tool is an insert, not a replace or remove, and still
+    wouldn't fit this shape -- not guessed at here.
     """
 
     brick_id: int
-    field: str
-    value: object
     verb: str
+    field: str | None = None
+    value: object = None
+
+    @property
+    def is_removal(self) -> bool:
+        return self.field is None
 
 
 class ActiveToolManager:
@@ -127,6 +141,38 @@ class ActiveToolManager:
             return True
 
         return False
+
+    def try_delete(
+        self,
+        button,
+        renderer: Renderer,
+        brick_id: int | None,
+    ) -> ToolResult | None:
+        """
+        Attempt an immediate delete of the brick under the cursor.
+        Unlike try_begin, this has no drag lifecycle at all --
+        deletion isn't parameterized by mouse position, so it
+        completes the instant the press is recognized rather than
+        arming self._active. Returns a ToolResult (with is_removal
+        True) if the press lands on the already-selected brick via
+        the Middle button; None otherwise -- including while another
+        tool's drag is already in progress, to avoid deleting a brick
+        out from under an active Move/Rotate.
+        """
+
+        if self.is_dragging:
+            return None
+
+        if brick_id is None or brick_id != renderer.selected_id:
+            return None
+
+        if button != Qt.MiddleButton:
+            return None
+
+        return ToolResult(
+            brick_id=brick_id,
+            verb="Deleted",
+        )
 
     def update(
         self,

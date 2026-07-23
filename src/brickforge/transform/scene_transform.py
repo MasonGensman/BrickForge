@@ -14,10 +14,27 @@ and substituting only the target. Neither the input Scene nor any
 SceneBrick is ever mutated.
 
 A transform's output Scene always has the exact same id set as its
-input -- replace_brick performs a strict one-for-one swap, never an
-insert or removal -- which is what lets MainWindow.set_current_scene()
-tell a Transform's output apart from a New/Open/Generate replacement
-without being told which case it is (see Package_028.md).
+input, or a strict subset -- replace_brick performs a one-for-one
+swap (same id set), remove_brick a strict removal (smaller id set),
+neither ever an insert. Either way the output's id set is never
+*larger* than the input's, which is what lets
+MainWindow.set_current_scene() tell any Transform's output apart from
+a New/Open/Generate replacement (an unrelated, typically larger or
+disjoint id set) without being told which case it is (see
+Package_028.md) -- and, for remove_brick specifically, is exactly why
+a deleted brick's selection clears for free: its id is provably absent
+from the result.
+
+remove_brick(scene, brick_id) intentionally shares its name with the
+existing Scene.remove_brick(brick_id) (Package_021, used internally by
+the Brick Merge / Hidden Brick Removal optimizers) despite that method
+mutating in place -- the two are disambiguated by calling convention
+at every call site (scene.remove_brick(id) vs. remove_brick(scene, id))
+the same way replace_brick(scene, brick) already reads distinctly from
+a hypothetical scene.replace(...) method. Scene.remove_brick() is left
+exactly as it was; remove_brick() below never calls it, building a
+fresh Scene by filtering during iteration instead, the same pattern
+replace_brick already uses (Package_032).
 """
 
 from brickforge.engine.scene import Scene
@@ -54,5 +71,33 @@ def replace_brick(
         new_scene.add_brick(
             updated_brick if brick.id == updated_brick.id else brick
         )
+
+    return new_scene
+
+
+def remove_brick(
+    scene: Scene,
+    brick_id: int,
+) -> Scene:
+    """
+    Return a new Scene with the brick matching brick_id removed,
+    preserving every other brick unchanged (by reference) and in
+    order. Raises TransformError if brick_id doesn't match any brick
+    currently in scene. Removing the last brick in a Scene produces a
+    valid, ordinary empty Scene -- not a special case.
+    """
+
+    if scene.get(brick_id) is None:
+
+        raise TransformError(
+            f"No brick with id {brick_id} in this Scene."
+        )
+
+    new_scene = Scene()
+
+    for brick in scene:
+
+        if brick.id != brick_id:
+            new_scene.add_brick(brick)
 
     return new_scene
