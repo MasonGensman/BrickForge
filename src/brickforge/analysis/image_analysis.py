@@ -5,8 +5,8 @@ Deterministic image-processing primitives that future AI packages will
 consume. analyze(image) is the primary entry point -- it produces
 ImageStatistics, a plain structured-data result, so a future AI consumer
 never needs to decode an image or touch pixels directly. crop(), resize(),
-histogram(), average_color(), and to_grayscale() are pure helper functions:
-stateless, no hidden state, safe to call independently.
+rotate90(), histogram(), average_color(), and to_grayscale() are pure
+helper functions: stateless, no hidden state, safe to call independently.
 
 No AI, no palette mapping, no LEGO generation. Independent of engine/,
 render/, OpenGL, and ui/ -- depends only on numpy, dataclasses, and
@@ -101,6 +101,36 @@ def resize(
     )
 
     return pixels[row_indices][:, col_indices].copy()
+
+
+def rotate90(
+    pixels: np.ndarray,
+    degrees: int,
+) -> np.ndarray:
+    """
+    Rotate by a multiple of 90 degrees, clockwise. degrees must be one
+    of 0, 90, 180, 270 -- arbitrary angles need an interpolation
+    algorithm choice, which is exactly the kind of algorithm-specific
+    behavior this module's deterministic primitives avoid; deferred,
+    not built here. Verified empirically against numpy's own rotation
+    convention: np.rot90's k is counterclockwise, so k = -(degrees // 90)
+    gives the clockwise rotation this function promises.
+    """
+
+    if degrees not in (0, 90, 180, 270):
+
+        raise ValueError(
+            f"rotate90 only supports 0/90/180/270 degrees, got {degrees}."
+        )
+
+    if degrees == 0:
+        return pixels.copy()
+
+    return np.rot90(
+        pixels,
+        k=-(degrees // 90),
+        axes=(0, 1),
+    ).copy()
 
 
 def to_grayscale(pixels: np.ndarray) -> np.ndarray:

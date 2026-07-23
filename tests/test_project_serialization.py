@@ -28,18 +28,26 @@ app_version, and correct nesting of a nested "StudWorks Scene"
 document inside the "StudWorks Project" document.
 """
 
+import os
 import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
 
 import glm
+import numpy as np
+from PySide6.QtGui import QColor, QImage
+from PySide6.QtWidgets import QApplication
 
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
+from brickforge.preparation.generation_input import GenerationInput
+from brickforge.preparation.image_preparation import ImagePreparationSettings
 from brickforge.project.project import Project, ProjectFileError
 from brickforge.project.project_manager import ProjectManager
 from brickforge.serialization.schema import SceneSerializationError
+
+_app = QApplication.instance() or QApplication([])
 
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden" / "sws_projects"
 
@@ -243,6 +251,110 @@ class GoldenFileProjectTests(unittest.TestCase):
         # are expected to change on save -- scene contents must not.
         after = _project_signature(project)
         self.assertEqual(before[2], after[2])  # scene signature unchanged
+
+
+def _write_test_image(directory: Path) -> Path:
+
+    image = QImage(6, 4, QImage.Format_RGBA8888)
+
+    for y in range(4):
+        for x in range(6):
+            image.setPixelColor(x, y, QColor((x * 30) % 255, (y * 40) % 255, 100, 255))
+
+    path = directory / "source.png"
+    image.save(str(path))
+
+    return path
+
+
+class ProjectGenerationInputTests(unittest.TestCase):
+    """
+    Not golden-file byte comparisons -- generation_input's serialized
+    source_path is inherently environment-dependent (it names a real
+    file on disk), so these are structural round-trip tests using a
+    real, freshly-created test image instead (Package_034).
+    """
+
+    def test_project_without_generation_input_has_no_such_key(self):
+
+        project = build_empty_project()
+        data = project.to_dict()
+
+        self.assertNotIn("generation_input", data)
+
+    def test_round_trip_preserves_generation_input(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            image_path = _write_test_image(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(
+                image_path,
+                ImagePreparationSettings(
+                    max_dimension=48, crop_rect=(1, 1, 3, 2), rotation_degrees=90,
+                ),
+            )
+
+            project = build_named_project_with_bricks()
+            project.generation_input = generation_input
+
+            save_path = Path(tmp_dir) / "project.sws"
+
+            manager = ProjectManager()
+            manager.current_project = project
+            manager.save(save_path)
+
+            reload_manager = ProjectManager()
+            reloaded = reload_manager.load(save_path)
+
+        reloaded_gi = reloaded.generation_input
+
+        self.assertIsNotNone(reloaded_gi)
+        self.assertEqual(reloaded_gi.source_path, image_path)
+        self.assertEqual(reloaded_gi.content_hash, generation_input.content_hash)
+        self.assertEqual(reloaded_gi.settings.crop_rect, (1, 1, 3, 2))
+        self.assertEqual(reloaded_gi.settings.rotation_degrees, 90)
+        self.assertTrue(
+            np.array_equal(
+                reloaded_gi.prepared_image.pixels,
+                generation_input.prepared_image.pixels,
+            )
+        )
+
+        # The Scene itself is untouched by any of this.
+        self.assertEqual(
+            _project_signature(reloaded)[2],
+            _project_signature(project)[2],
+        )
+
+    def test_missing_source_image_degrades_gracefully_on_load(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            image_path = _write_test_image(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(image_path)
+
+            project = build_named_project_with_bricks()
+            project.generation_input = generation_input
+
+            save_path = Path(tmp_dir) / "project.sws"
+
+            manager = ProjectManager()
+            manager.current_project = project
+            manager.save(save_path)
+
+            os.remove(image_path)
+
+            reload_manager = ProjectManager()
+            reloaded = reload_manager.load(save_path)
+
+        self.assertIsNone(reloaded.generation_input)
+        # The Scene must still load correctly despite the missing image.
+        self.assertEqual(
+            _project_signature(reloaded)[2],
+            _project_signature(project)[2],
+        )
 
 
 class ProjectErrorHandlingTests(unittest.TestCase):

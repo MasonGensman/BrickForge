@@ -15,10 +15,25 @@ scene_to_document()/document_to_scene(), Package_025's reusable
 primitives) inside this project's own "StudWorks Project" document.
 The two formats have independent format/schema_version identifiers,
 so either can evolve without the other changing.
+
+Package_034 adds generation_input: a Project's reference to the
+source image (if any) it was built from. Only the reference --
+source_path, content_hash, and ImagePreparationSettings -- is
+persisted, never the prepared or original pixel data (keeps the .sws
+JSON small and diffable, per Package_025's own reasoning).
+prepared_image is regenerated on load via GenerationInput.from_source(),
+which is safe because prepare_image() is already deterministic. If
+the source file has moved or been deleted since the project was
+saved, from_dict() degrades gracefully -- generation_input becomes
+None and a warning is logged, rather than blocking the whole project
+load, matching this codebase's established "one non-critical
+subsystem's failure shouldn't take down the rest of the app" pattern
+(BrickManager, ColorResolver).
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -26,8 +41,12 @@ from typing import Any
 
 from brickforge._version import APP_VERSION
 from brickforge.engine.scene import Scene
+from brickforge.preparation.generation_input import GenerationInput
+from brickforge.preparation.image_preparation import ImagePreparationSettings
 from brickforge.serialization.deserializer import document_to_scene
 from brickforge.serialization.serializer import scene_to_document
+
+logger = logging.getLogger(__name__)
 
 PROJECT_FORMAT_IDENTIFIER = "StudWorks Project"
 PROJECT_SCHEMA_VERSION = 1
@@ -40,8 +59,63 @@ class ProjectFileError(Exception):
     a missing required field. Never raised for a problem in the
     embedded Scene data -- that's SceneSerializationError's job
     (Package_025's document_to_scene()), left uncaught here so callers
-    can tell which layer actually failed.
+    can tell which layer actually failed. Also never raised for a
+    missing/unreadable generation_input source image -- that degrades
+    gracefully instead (see from_dict()).
     """
+
+
+def _generation_input_to_dict(
+    generation_input: GenerationInput,
+) -> dict[str, Any]:
+
+    return {
+        "source_path": str(generation_input.source_path),
+        "content_hash": generation_input.content_hash,
+        "settings": {
+            "max_dimension": generation_input.settings.max_dimension,
+            "crop_rect": (
+                list(generation_input.settings.crop_rect)
+                if generation_input.settings.crop_rect is not None
+                else None
+            ),
+            "rotation_degrees": generation_input.settings.rotation_degrees,
+        },
+    }
+
+
+def _generation_input_from_dict(
+    data: dict[str, Any],
+) -> GenerationInput | None:
+
+    source_path = data.get("source_path")
+
+    if source_path is None:
+        return None
+
+    settings_data = data.get("settings", {})
+
+    crop_rect = settings_data.get("crop_rect")
+
+    settings = ImagePreparationSettings(
+        max_dimension=settings_data.get("max_dimension", 48),
+        crop_rect=tuple(crop_rect) if crop_rect is not None else None,
+        rotation_degrees=settings_data.get("rotation_degrees", 0),
+    )
+
+    try:
+
+        return GenerationInput.from_source(source_path, settings)
+
+    except (OSError, ValueError) as error:
+
+        logger.warning(
+            "Project's generation_input source image could not be "
+            "reloaded, continuing without it: %s",
+            error,
+        )
+
+        return None
 
 
 @dataclass
@@ -52,6 +126,8 @@ class Project:
     file_path: Path | None = None
 
     scene: Scene = field(default_factory=Scene)
+
+    generation_input: GenerationInput | None = None
 
     created: datetime = field(default_factory=datetime.now)
     modified: datetime = field(default_factory=datetime.now)
@@ -81,7 +157,7 @@ class Project:
     def to_dict(self) -> dict[str, Any]:
         """Convert project (including its Scene) to a JSON-serializable dictionary."""
 
-        return {
+        data = {
             "format": PROJECT_FORMAT_IDENTIFIER,
             "schema_version": PROJECT_SCHEMA_VERSION,
             "name": self.name,
@@ -90,6 +166,14 @@ class Project:
             "app_version": self.app_version,
             "scene": scene_to_document(self.scene),
         }
+
+        if self.generation_input is not None:
+
+            data["generation_input"] = _generation_input_to_dict(
+                self.generation_input
+            )
+
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Project":
@@ -135,10 +219,18 @@ class Project:
                 'Project data is missing the required "scene" field.'
             )
 
+        generation_input = None
+
+        if "generation_input" in data:
+            generation_input = _generation_input_from_dict(
+                data["generation_input"]
+            )
+
         project = cls(
             name=data.get("name", "Untitled Project"),
             app_version=data.get("app_version", APP_VERSION),
             scene=document_to_scene(data["scene"]),
+            generation_input=generation_input,
         )
 
         if "created" in data:

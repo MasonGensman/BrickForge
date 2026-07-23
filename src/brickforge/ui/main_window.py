@@ -136,12 +136,33 @@ class MainWindow(QMainWindow):
             self.on_generate_lego
         )
 
+        self.image_preview.image_imported.connect(
+            self.on_image_imported
+        )
+
         self.viewport.brick_clicked.connect(self.on_brick_clicked)
         self.viewport.brick_transformed.connect(self.on_brick_transformed)
 
     def on_brick_selected(self, brick):
         self.status.showMessage(
             f"Selected: {brick.name} ({brick.part_number})"
+        )
+
+    def on_image_imported(self, generation_input):
+        """
+        Stores the freshly-imported GenerationInput on the current
+        Project -- the one place a Project learns what source image
+        (if any) it was built from (Package_034).
+        """
+
+        self.project_manager.current_project.generation_input = (
+            generation_input
+        )
+
+        self.project_manager.current_project.mark_dirty()
+
+        self.status.showMessage(
+            f"Imported {generation_input.source_path.name}."
         )
 
     def on_brick_clicked(self, brick_id):

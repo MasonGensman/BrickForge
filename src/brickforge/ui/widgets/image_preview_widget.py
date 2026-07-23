@@ -3,8 +3,7 @@ BrickForge Image Preview Widget
 
 Minimal user-visible confirmation that image loading works: an Import
 button, a thumbnail, and basic info (dimensions, format, source hash). No
-OpenGL texture, no renderer involvement -- self-contained, owns its own
-ImageManager.
+OpenGL texture, no renderer involvement -- self-contained.
 
 Also hosts Generation Mode selection (Package_017): a mode dropdown
 populated entirely from the GenerationMode registry, whichever settings
@@ -14,12 +13,20 @@ GenerationMode/SettingsPanel contract. It emits generate_requested for
 MainWindow to act on, matching how BrickLibraryWidget's brick_selected
 signal is already handled.
 
-Runs every imported image through the shared Image Preparation stage
-(Package_018) once, immediately after import. The resulting prepared
-ImageResource is the single object used for both the thumbnail and
-generation -- the preview always shows exactly what the selected mode
-will receive, by construction rather than by two call sites happening
-to agree.
+Package_034: builds one GenerationInput per import (via
+GenerationInput.from_source(), default ImagePreparationSettings -- no
+interactive crop/rotate UI here, those settings are reachable
+programmatically, ready for a future package to build a UI on top of)
+instead of the previous two separate ImageManager.load() +
+prepare_image() calls -- eliminates duplicate load/decode work and gives
+this widget a single source of truth. generation_input.prepared_image is
+the one object used for both the thumbnail and generation, so the
+preview always shows exactly what the selected mode will receive.
+Emits image_imported for MainWindow to store on the current Project,
+matching the widget-emits/MainWindow-reacts convention used throughout
+this app (brick_clicked, brick_transformed, generate_requested).
+ImageManager is no longer used here (confirmed via grep to have no other
+consumer) -- left in place, unmodified, as unrelated cleanup.
 """
 
 from pathlib import Path
@@ -39,15 +46,20 @@ from PySide6.QtWidgets import (
 
 from brickforge.generation.generation_mode import GenerationMode
 from brickforge.generation.registry import list_modes
-from brickforge.io.image_manager import ImageManager
-from brickforge.io.image_resource import ImageResource
-from brickforge.preparation.image_preparation import prepare_image
+from brickforge.preparation.generation_input import GenerationInput
 
 
 class ImagePreviewWidget(QDockWidget):
     """Import an image, select a generation mode, and request generation."""
 
     generate_requested = Signal(object, object, object)
+
+    #
+    # Emits the freshly-built GenerationInput once an image has been
+    # imported and prepared -- MainWindow stores it on the current
+    # Project. Package_034.
+    #
+    image_imported = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__("Image Preview", parent)
@@ -57,9 +69,7 @@ class ImagePreviewWidget(QDockWidget):
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
 
-        self.manager = ImageManager()
-
-        self._prepared_image: ImageResource | None = None
+        self._generation_input: GenerationInput | None = None
 
         self._current_mode: GenerationMode | None = None
         self._current_panel = None
@@ -173,7 +183,7 @@ class ImagePreviewWidget(QDockWidget):
             return
 
         try:
-            resource = self.manager.load(path)
+            generation_input = GenerationInput.from_source(path)
 
         except (OSError, ValueError) as error:
 
@@ -183,9 +193,11 @@ class ImagePreviewWidget(QDockWidget):
             )
             return
 
-        self._prepared_image = prepare_image(resource)
+        self._generation_input = generation_input
 
-        self.display(self._prepared_image)
+        self.display(generation_input.prepared_image)
+
+        self.image_imported.emit(generation_input)
 
     def display(self, resource):
 
@@ -215,7 +227,7 @@ class ImagePreviewWidget(QDockWidget):
 
     def generate_lego(self):
 
-        if not self.manager.has_image:
+        if self._generation_input is None:
 
             self.info.setText(
                 "Please import an image first."
@@ -235,7 +247,7 @@ class ImagePreviewWidget(QDockWidget):
         settings = self._current_panel.get_settings()
 
         self.generate_requested.emit(
-            self._prepared_image,
+            self._generation_input.prepared_image,
             self._current_mode,
             settings,
         )
