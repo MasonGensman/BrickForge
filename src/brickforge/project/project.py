@@ -29,6 +29,14 @@ None and a warning is logged, rather than blocking the whole project
 load, matching this codebase's established "one non-critical
 subsystem's failure shouldn't take down the rest of the app" pattern
 (BrickManager, ColorResolver).
+
+Package_036 adds generation_constraints: a Project's own
+GenerationConstraints (generation/candidates.py), describing which
+catalog parts a future generation pass is permitted to use. Unlike
+generation_input, this is stored verbatim, not regenerated -- it is
+plain user intent (permitted colors/categories/sizes), not derived
+from anything, so there is nothing to recompute on load and no
+external file it could go missing.
 """
 
 from __future__ import annotations
@@ -41,6 +49,7 @@ from typing import Any
 
 from brickforge._version import APP_VERSION
 from brickforge.engine.scene import Scene
+from brickforge.generation.candidates import GenerationConstraints
 from brickforge.preparation.generation_input import GenerationInput
 from brickforge.preparation.image_preparation import ImagePreparationSettings
 from brickforge.serialization.deserializer import document_to_scene
@@ -118,6 +127,38 @@ def _generation_input_from_dict(
         return None
 
 
+def _generation_constraints_to_dict(
+    constraints: GenerationConstraints,
+) -> dict[str, Any]:
+
+    return {
+        "permitted_colors": constraints.permitted_colors,
+        "permitted_categories": constraints.permitted_categories,
+        "permitted_families": constraints.permitted_families,
+        "min_stud_width": constraints.min_stud_width,
+        "max_stud_width": constraints.max_stud_width,
+        "min_stud_length": constraints.min_stud_length,
+        "max_stud_length": constraints.max_stud_length,
+        "excluded_part_numbers": constraints.excluded_part_numbers,
+    }
+
+
+def _generation_constraints_from_dict(
+    data: dict[str, Any],
+) -> GenerationConstraints:
+
+    return GenerationConstraints(
+        permitted_colors=data.get("permitted_colors"),
+        permitted_categories=data.get("permitted_categories"),
+        permitted_families=data.get("permitted_families"),
+        min_stud_width=data.get("min_stud_width"),
+        max_stud_width=data.get("max_stud_width"),
+        min_stud_length=data.get("min_stud_length"),
+        max_stud_length=data.get("max_stud_length"),
+        excluded_part_numbers=data.get("excluded_part_numbers", []),
+    )
+
+
 @dataclass
 class Project:
     """Represents a StudWorks project: metadata plus its Scene."""
@@ -128,6 +169,7 @@ class Project:
     scene: Scene = field(default_factory=Scene)
 
     generation_input: GenerationInput | None = None
+    generation_constraints: GenerationConstraints | None = None
 
     created: datetime = field(default_factory=datetime.now)
     modified: datetime = field(default_factory=datetime.now)
@@ -171,6 +213,14 @@ class Project:
 
             data["generation_input"] = _generation_input_to_dict(
                 self.generation_input
+            )
+
+        if self.generation_constraints is not None:
+
+            data["generation_constraints"] = (
+                _generation_constraints_to_dict(
+                    self.generation_constraints
+                )
             )
 
         return data
@@ -226,11 +276,19 @@ class Project:
                 data["generation_input"]
             )
 
+        generation_constraints = None
+
+        if "generation_constraints" in data:
+            generation_constraints = _generation_constraints_from_dict(
+                data["generation_constraints"]
+            )
+
         project = cls(
             name=data.get("name", "Untitled Project"),
             app_version=data.get("app_version", APP_VERSION),
             scene=document_to_scene(data["scene"]),
             generation_input=generation_input,
+            generation_constraints=generation_constraints,
         )
 
         if "created" in data:

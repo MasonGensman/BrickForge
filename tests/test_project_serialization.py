@@ -41,6 +41,7 @@ from PySide6.QtWidgets import QApplication
 
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
+from brickforge.generation.candidates import GenerationConstraints
 from brickforge.preparation.generation_input import GenerationInput
 from brickforge.preparation.image_preparation import ImagePreparationSettings
 from brickforge.project.project import Project, ProjectFileError
@@ -409,6 +410,94 @@ class ProjectGenerationInputTests(unittest.TestCase):
         self.assertEqual(
             _project_signature(reloaded)[2],
             _project_signature(project)[2],
+        )
+
+
+class ProjectGenerationConstraintsTests(unittest.TestCase):
+    """
+    Package_036: generation_constraints is plain, already-JSON-native
+    user data with no external dependency -- stored verbatim, unlike
+    generation_input's regenerate-on-load pattern, so there is no
+    missing-source degradation case to test here.
+    """
+
+    def test_project_without_generation_constraints_has_no_such_key(self):
+
+        project = build_empty_project()
+        data = project.to_dict()
+
+        self.assertNotIn("generation_constraints", data)
+
+    def test_round_trip_preserves_generation_constraints(self):
+
+        constraints = GenerationConstraints(
+            permitted_colors=[4, 14, 15],
+            permitted_categories=["Brick", "Plate"],
+            permitted_families=None,
+            min_stud_width=1,
+            max_stud_width=4,
+            min_stud_length=None,
+            max_stud_length=None,
+            excluded_part_numbers=["3068"],
+        )
+
+        project = build_named_project_with_bricks()
+        project.generation_constraints = constraints
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            save_path = Path(tmp_dir) / "project.sws"
+
+            manager = ProjectManager()
+            manager.current_project = project
+            manager.save(save_path)
+
+            reload_manager = ProjectManager()
+            reloaded = reload_manager.load(save_path)
+
+        reloaded_constraints = reloaded.generation_constraints
+
+        self.assertEqual(
+            reloaded_constraints.permitted_colors, [4, 14, 15]
+        )
+        self.assertEqual(
+            reloaded_constraints.permitted_categories, ["Brick", "Plate"]
+        )
+        self.assertIsNone(reloaded_constraints.permitted_families)
+        self.assertEqual(reloaded_constraints.min_stud_width, 1)
+        self.assertEqual(reloaded_constraints.max_stud_width, 4)
+        self.assertIsNone(reloaded_constraints.min_stud_length)
+        self.assertIsNone(reloaded_constraints.max_stud_length)
+        self.assertEqual(
+            reloaded_constraints.excluded_part_numbers, ["3068"]
+        )
+
+    def test_explicit_empty_permitted_colors_round_trips_as_empty_not_none(self):
+        """None and [] are semantically distinct for permitted_* fields
+        (unconstrained vs. constrained-to-nothing) -- the round trip
+        must not collapse one into the other."""
+
+        project = build_named_project_with_bricks()
+        project.generation_constraints = GenerationConstraints(
+            permitted_colors=[]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            save_path = Path(tmp_dir) / "project.sws"
+
+            manager = ProjectManager()
+            manager.current_project = project
+            manager.save(save_path)
+
+            reload_manager = ProjectManager()
+            reloaded = reload_manager.load(save_path)
+
+        self.assertEqual(
+            reloaded.generation_constraints.permitted_colors, []
+        )
+        self.assertIsNotNone(
+            reloaded.generation_constraints.permitted_colors
         )
 
 
