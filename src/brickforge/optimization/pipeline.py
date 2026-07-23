@@ -6,6 +6,15 @@ may run a chain of registered optimizers internally, but a caller
 never needs to know that -- matching how mode.generate(...) and
 prepare_image(...) already read as single transformations
 (Package_020's naming decision).
+
+Optimizers run strictly sequentially, each consuming the Scene the
+previous optimizer produced, not the original input Scene. This is
+deterministic (registration order is fixed) and is intentional
+pipeline design, not an incidental side effect of the loop below: a
+later optimizer is expected to see, and may benefit from, geometry an
+earlier optimizer has already transformed. Registration order
+therefore matters -- see optimization/__init__.py for the order known
+optimizer modules are imported in.
 """
 
 from brickforge.engine.scene import Scene
@@ -22,6 +31,10 @@ def optimize_scene(
     Run scene through the given optimizers (or every registered
     optimizer, in registration order, if optimizer_ids is None),
     returning a new, optimized Scene.
+
+    Optimizers are chained sequentially: each one receives the Scene
+    the previous optimizer produced, not the original `scene` argument.
+    This is deterministic and by design -- see the module docstring.
 
     Performs no mutation of its own; each optimizer is independently
     responsible for never mutating the Scene it receives.

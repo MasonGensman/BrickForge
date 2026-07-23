@@ -186,3 +186,26 @@ Generation Modes extends naturally here. Not built in this package.
   Relief validated the Generation Mode registry in Package_019).
 
 No code was written in this package.
+
+---
+
+# Amendment: Sequential Composition Is Explicit Design (2026-07-16)
+
+Confirmed after Package_022 (Hidden Brick Removal) became the second
+real optimizer: **optimizers registered with `optimize_scene()` run
+strictly sequentially, each one operating on the Scene the previous
+optimizer produced, not on the original generated Scene.** Registration
+order (`optimization/__init__.py`'s import order) is therefore part of
+the pipeline's observable behavior, not an implementation detail.
+
+This was always what the "chain" shape approved above (`Scene →
+Optimizer A → Optimizer B → Optimizer C → Optimized Scene`) meant, and
+the `optimize_scene()` implementation has done this from Package_021
+onward (`scene = optimizer.optimize(scene, catalog)`, reassigned each
+loop iteration) — but it's worth stating explicitly, deterministically,
+as intended design rather than leaving it to be inferred from the loop.
+Package_022 initially described a consequence of this (Brick Merge
+restructuring a dense region before Hidden Brick Removal saw it) as
+"emergent behavior"; that characterization undersold it — it is the
+pipeline doing exactly what it was designed to do. `pipeline.py`'s
+docstring now states this directly rather than leaving it implicit.

@@ -78,19 +78,24 @@ missing or non-matching) can never become "more surrounded" in a
 later pass, since removal only shrinks the position index further —
 proved by construction, then confirmed empirically.
 
-**Composition with Brick Merge — a real, documented interaction**:
-because `optimize_scene()`'s default runs Brick Merge first, a dense
-region built from a part *that Brick Merge can merge* gets restructured
-before Hidden Brick Removal ever sees it (verified directly: a solid
-3×3×3 cube of `3005` bricks, run through the full default pipeline,
-first collapses via Brick Merge into a mix of `3004`/`3005` bricks per
+**Composition with Brick Merge — intentional sequential pipeline
+design, not emergent behavior**: optimizers run strictly sequentially,
+each one operating on the Scene the *previous* optimizer produced, not
+the original generated Scene — this is deterministic (fixed by
+registration order) and is how the pipeline was designed to work, not
+an incidental side effect worth merely noting. Because
+`optimize_scene()`'s default runs Brick Merge first, a dense region
+built from a part *that Brick Merge can merge* is restructured before
+Hidden Brick Removal ever sees it (verified directly: a solid 3×3×3
+cube of `3005` bricks, run through the full default pipeline, first
+collapses via Brick Merge into a mix of `3004`/`3005` bricks per
 column, which no longer share a uniform part+rotation everywhere, so
 Hidden Brick Removal's stricter same-part rule then applies to that
-already-restructured geometry rather than the original cube). This
-is expected, correct emergent behavior of two independent optimizers
-composing in sequence — not a bug — and is exactly the kind of
-interaction the architecture was designed to allow without either
-optimizer needing to know the other exists.
+already-restructured geometry rather than the original cube). This is
+exactly the kind of interaction the architecture was designed to allow
+without either optimizer needing to know the other exists — see
+Package_020.md's 2026-07-16 amendment, which states this composition
+principle explicitly at the architecture level.
 
 ---
 
