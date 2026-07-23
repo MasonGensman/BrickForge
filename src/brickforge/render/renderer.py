@@ -4,6 +4,8 @@ Renderer V2
 Milestone 3.1
 """
 
+from dataclasses import dataclass
+
 import glm
 
 from OpenGL.GL import (
@@ -27,7 +29,11 @@ from brickforge.engine.scene_brick import SceneBrick
 from brickforge.render.camera import Camera
 from brickforge.render.color_resolver import ColorResolver
 from brickforge.render.grid import Grid
-from brickforge.render.picking import ray_intersects_aabb, screen_to_ray
+from brickforge.render.picking import (
+    ray_intersects_aabb,
+    ray_intersects_horizontal_plane,
+    screen_to_ray,
+)
 from brickforge.render.render_context import RenderContext
 from brickforge.render.shader import Shader
 from brickforge.render.vertex_array import VertexArray
@@ -42,6 +48,26 @@ from brickforge.services.part_catalog import PartCatalog
 # selection highlight is never confused with a brick's real color.
 #
 _SELECTION_HIGHLIGHT_RGB = (0.1, 0.95, 1.0)
+
+
+@dataclass(frozen=True, slots=True)
+class ScenePreview:
+    """
+    A transient, renderer-only override of one brick's rendered
+    transform -- render() draws brick_id at position/rotation instead
+    of whatever its SceneBrick in Scene currently holds. Never
+    touches Scene or SceneBrick, and carries nothing else (not
+    part_name, not color): only what render()'s model-matrix
+    construction actually needs, so it stays deliberately generic
+    rather than shaped around any one tool. Renderer only ever
+    consumes this value -- it has no knowledge of which interaction
+    subsystem (MoveTool today, a future RotateTool, ...) produced it
+    (Package_029).
+    """
+
+    brick_id: int
+    position: glm.vec3
+    rotation: glm.quat
 
 
 class Renderer:
@@ -71,6 +97,16 @@ class Renderer:
         # mirroring how set_scene() already works (Package_027).
         #
         self.selected_id: int | None = None
+
+        #
+        # The only preview state Renderer holds -- an optional
+        # override of one brick's rendered transform. Renderer has no
+        # reference to MoveTool (or any future interaction tool) and
+        # no way to reach for one; the owning widget pushes the
+        # current preview in via set_preview(), mirroring
+        # set_scene()/set_selected_id() (Package_029).
+        #
+        self.preview: ScenePreview | None = None
 
         self.width = 1
         self.height = 1
@@ -209,6 +245,47 @@ class Renderer:
 
         self.selected_id = brick_id
 
+    def set_preview(
+        self,
+        preview: ScenePreview | None,
+    ) -> None:
+        """Replace the transform preview override. Pass None to clear
+        it -- there is no separate clear_preview(), matching
+        set_selected_id(None)'s existing idiom."""
+
+        self.preview = preview
+
+    def project_to_ground(
+        self,
+        screen_x: float,
+        screen_y: float,
+        plane_y: float,
+    ) -> glm.vec3 | None:
+        """
+        Cast a ray from a screen-space point and intersect it with
+        the horizontal plane at plane_y, returning the world-space
+        hit point, or None if the ray is parallel to that plane (a
+        rare degenerate case at the current camera orientation).
+        """
+
+        ray_origin, ray_direction = screen_to_ray(
+            screen_x,
+            screen_y,
+            self.width,
+            self.height,
+            self.camera.view_matrix(),
+            self.camera.projection_matrix(
+                self.width,
+                self.height,
+            ),
+        )
+
+        return ray_intersects_horizontal_plane(
+            ray_origin,
+            ray_direction,
+            plane_y,
+        )
+
     def pick(
         self,
         screen_x: float,
@@ -343,13 +420,24 @@ class Renderer:
             self.scene
         ):
 
+            position = brick.position
+            rotation = brick.rotation
+
+            if (
+                self.preview is not None
+                and self.preview.brick_id == brick.id
+            ):
+
+                position = self.preview.position
+                rotation = self.preview.rotation
+
             self.shader.set_matrix4(
                 "u_model",
                 glm.translate(
                     glm.mat4(1.0),
-                    brick.position,
+                    position,
                 )
-                * glm.mat4_cast(brick.rotation),
+                * glm.mat4_cast(rotation),
             )
 
             resolved_color = self.color_resolver.resolve(

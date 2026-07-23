@@ -2,12 +2,13 @@
 StudWorks Picking
 
 Pure geometry: turning a screen-space click into a world-space ray,
-and testing a ray against an axis-aligned bounding box. No OpenGL
-calls and no renderer state -- Renderer.pick() is the only caller,
-combining these with its own live Camera/BrickManager/Scene state.
-Kept separate specifically so this math is unit-testable without a
-live GL context, matching how Package_024's LDraw rotation math was
-verified independently of any renderer.
+and testing a ray against an axis-aligned bounding box or a
+horizontal plane. No OpenGL calls and no renderer state --
+Renderer.pick()/project_to_ground() are the only callers, combining
+these with their own live Camera/BrickManager/Scene state. Kept
+separate specifically so this math is unit-testable without a live GL
+context, matching how Package_024's LDraw rotation math was verified
+independently of any renderer.
 """
 
 import math
@@ -104,3 +105,26 @@ def ray_intersects_aabb(
     # the origin itself, t = 0.
     #
     return max(t_near, 0.0)
+
+
+def ray_intersects_horizontal_plane(
+    ray_origin: glm.vec3,
+    ray_direction: glm.vec3,
+    plane_y: float,
+) -> glm.vec3 | None:
+    """
+    Intersect a ray with the horizontal (X/Z) plane at height plane_y.
+    Returns the world-space hit point, or None if the ray is parallel
+    to the plane (direction.y == 0.0) or the plane lies entirely
+    behind the ray origin.
+    """
+
+    if ray_direction.y == 0.0:
+        return None
+
+    t = (plane_y - ray_origin.y) / ray_direction.y
+
+    if t < 0.0:
+        return None
+
+    return ray_origin + t * ray_direction

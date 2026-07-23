@@ -1,5 +1,5 @@
 """
-StudWorks Picking Tests (Package_027)
+StudWorks Picking Tests (Package_027, extended in Package_029)
 
 Pure unit tests for render/picking.py -- no live OpenGL context, no
 Renderer, no BrickManager. Camera matrices are built directly with
@@ -11,7 +11,11 @@ import unittest
 
 import glm
 
-from brickforge.render.picking import ray_intersects_aabb, screen_to_ray
+from brickforge.render.picking import (
+    ray_intersects_aabb,
+    ray_intersects_horizontal_plane,
+    screen_to_ray,
+)
 
 _WIDTH = 800
 _HEIGHT = 600
@@ -215,6 +219,70 @@ class RayIntersectsAabbTests(unittest.TestCase):
         )
 
         self.assertIsNone(t)
+
+
+class RayIntersectsHorizontalPlaneTests(unittest.TestCase):
+
+    def test_straight_down_hits_the_plane_below(self):
+
+        origin = glm.vec3(3.0, 10.0, -5.0)
+        direction = glm.vec3(0.0, -1.0, 0.0)
+
+        hit = ray_intersects_horizontal_plane(origin, direction, 0.0)
+
+        self.assertIsNotNone(hit)
+        self.assertAlmostEqual(hit.x, 3.0, places=5)
+        self.assertAlmostEqual(hit.y, 0.0, places=5)
+        self.assertAlmostEqual(hit.z, -5.0, places=5)
+
+    def test_angled_ray_hits_the_correct_point(self):
+
+        origin = glm.vec3(0.0, 10.0, 0.0)
+        direction = glm.normalize(glm.vec3(1.0, -1.0, 0.0))
+
+        hit = ray_intersects_horizontal_plane(origin, direction, 0.0)
+
+        self.assertIsNotNone(hit)
+        self.assertAlmostEqual(hit.x, 10.0, places=4)
+        self.assertAlmostEqual(hit.y, 0.0, places=5)
+
+    def test_parallel_ray_misses(self):
+
+        origin = glm.vec3(0.0, 10.0, 0.0)
+        direction = glm.vec3(1.0, 0.0, 0.0)
+
+        hit = ray_intersects_horizontal_plane(origin, direction, 0.0)
+
+        self.assertIsNone(hit)
+
+    def test_plane_behind_the_ray_origin_misses(self):
+
+        origin = glm.vec3(0.0, 10.0, 0.0)
+        direction = glm.vec3(0.0, 1.0, 0.0)
+
+        hit = ray_intersects_horizontal_plane(origin, direction, 0.0)
+
+        self.assertIsNone(hit)
+
+    def test_plane_at_a_nonzero_height(self):
+
+        origin = glm.vec3(0.0, 0.0, 0.0)
+        direction = glm.vec3(0.0, 1.0, 0.0)
+
+        hit = ray_intersects_horizontal_plane(origin, direction, 24.0)
+
+        self.assertIsNotNone(hit)
+        self.assertAlmostEqual(hit.y, 24.0, places=5)
+
+    def test_origin_already_on_the_plane(self):
+
+        origin = glm.vec3(5.0, 0.0, 5.0)
+        direction = glm.vec3(0.0, -1.0, 0.0)
+
+        hit = ray_intersects_horizontal_plane(origin, direction, 0.0)
+
+        self.assertIsNotNone(hit)
+        self.assertAlmostEqual(hit.y, 0.0, places=5)
 
 
 if __name__ == "__main__":

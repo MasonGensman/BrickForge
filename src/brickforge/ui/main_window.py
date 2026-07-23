@@ -1,3 +1,5 @@
+import dataclasses
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QFileDialog, QMainWindow
@@ -11,6 +13,7 @@ from brickforge.resources import resource_path
 from brickforge.selection.selection_manager import SelectionManager
 from brickforge.serialization.schema import SceneSerializationError
 from brickforge.services.part_catalog import PartCatalog
+from brickforge.transform.scene_transform import TransformError, replace_brick
 from brickforge.ui.toolbar import create_toolbar, project_manager
 from brickforge.ui.widgets import (
     BrickLibraryWidget,
@@ -115,6 +118,7 @@ class MainWindow(QMainWindow):
         )
 
         self.viewport.brick_clicked.connect(self.on_brick_clicked)
+        self.viewport.brick_moved.connect(self.on_brick_moved)
 
     def on_brick_selected(self, brick):
         self.status.showMessage(
@@ -147,6 +151,37 @@ class MainWindow(QMainWindow):
         )
 
         self.viewport.update()
+
+    def on_brick_moved(self, brick_id, new_position):
+
+        scene = self.viewport.renderer.scene
+
+        updated_brick = dataclasses.replace(
+            scene.get(brick_id),
+            position=new_position,
+        )
+
+        try:
+            new_scene = replace_brick(scene, updated_brick)
+
+        except TransformError as error:
+
+            self.status.showMessage(
+                f"Move failed: {error}"
+            )
+            return
+
+        #
+        # Package_028: set_current_scene() clears selection only if
+        # the selected id is no longer present -- replace_brick()
+        # preserves every id, so the moved brick stays selected.
+        #
+        self.set_current_scene(new_scene)
+        self.project_manager.current_project.mark_dirty()
+
+        self.status.showMessage(
+            f"Moved brick #{brick_id}."
+        )
 
     def set_current_scene(
         self,

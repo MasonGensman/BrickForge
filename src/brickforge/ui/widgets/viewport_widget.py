@@ -7,7 +7,8 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from brickforge.render.renderer import Renderer
+from brickforge.render.renderer import Renderer, ScenePreview
+from brickforge.tools.move_tool import MoveTool
 
 
 class ViewportWidget(QOpenGLWidget):
@@ -22,6 +23,14 @@ class ViewportWidget(QOpenGLWidget):
     #
     brick_clicked = Signal(object)
 
+    #
+    # Emits (brick_id, new_position) once a brick-drag completes with
+    # real movement -- MainWindow owns the Transform package and the
+    # scene activation helper, and reacts to this the same way it
+    # reacts to brick_clicked. Package_029.
+    #
+    brick_moved = Signal(object, object)
+
     def __init__(self):
         super().__init__()
 
@@ -29,6 +38,7 @@ class ViewportWidget(QOpenGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
 
         self.renderer = Renderer()
+        self.move_tool = MoveTool()
 
         #
         # Create timer but don't start it until
@@ -76,6 +86,29 @@ class ViewportWidget(QOpenGLWidget):
                 event.position().y(),
             )
 
+            if (
+                brick_id is not None
+                and brick_id == self.renderer.selected_id
+            ):
+
+                #
+                # Pressing the already-selected brick begins a move
+                # drag instead of re-selecting it -- selection is
+                # unchanged, so no signal is emitted here.
+                #
+                brick = self.renderer.scene.get(brick_id)
+
+                grab_point = self.renderer.project_to_ground(
+                    event.position().x(),
+                    event.position().y(),
+                    brick.position.y,
+                )
+
+                if grab_point is not None:
+                    self.move_tool.begin(brick, grab_point)
+
+                return
+
             self.brick_clicked.emit(brick_id)
 
             return
@@ -88,6 +121,29 @@ class ViewportWidget(QOpenGLWidget):
 
     def mouseReleaseEvent(self, event):
 
+        if self.move_tool.is_dragging:
+
+            grab_point = self.renderer.project_to_ground(
+                event.position().x(),
+                event.position().y(),
+                self.move_tool.plane_y,
+            )
+
+            if grab_point is not None:
+                result = self.move_tool.finish(grab_point)
+            else:
+                self.move_tool.cancel()
+                result = None
+
+            self.renderer.set_preview(None)
+
+            if result is not None:
+                self.brick_moved.emit(*result)
+
+            self.update()
+
+            return
+
         if event.button() in (
             Qt.RightButton,
             Qt.MiddleButton,
@@ -95,6 +151,30 @@ class ViewportWidget(QOpenGLWidget):
             self.last_mouse_position = None
 
     def mouseMoveEvent(self, event):
+
+        if self.move_tool.is_dragging:
+
+            grab_point = self.renderer.project_to_ground(
+                event.position().x(),
+                event.position().y(),
+                self.move_tool.plane_y,
+            )
+
+            if grab_point is not None:
+
+                brick = self.renderer.scene.get(self.move_tool.brick_id)
+
+                self.renderer.set_preview(
+                    ScenePreview(
+                        brick_id=self.move_tool.brick_id,
+                        position=self.move_tool.update(grab_point),
+                        rotation=brick.rotation,
+                    )
+                )
+
+                self.update()
+
+            return
 
         if self.last_mouse_position is None:
             return
