@@ -35,10 +35,43 @@ a hypothetical scene.replace(...) method. Scene.remove_brick() is left
 exactly as it was; remove_brick() below never calls it, building a
 fresh Scene by filtering during iteration instead, the same pattern
 replace_brick already uses (Package_032).
+
+duplicate_brick(scene, brick_id) is the one operation here whose id
+set *grows* -- and the one function in this module that returns more
+than a Scene. Its (Scene, new_id) return isn't an inconsistency with
+replace_brick/remove_brick's plain Scene return; it's a genuine
+difference in what each operation's caller needs: a modify or removal
+is fully described by the id the caller already gave it, but a
+duplicate creates an id the caller has no way to know in advance
+without redundantly re-deriving it (e.g. diffing before/after id
+sets). Forcing replace_brick/remove_brick into a matching tuple shape
+for cosmetic symmetry was considered and declined -- it would give
+every existing caller a meaningless second value for no benefit
+(Package_033).
 """
+
+import dataclasses
+
+import glm
 
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
+
+#
+# One stud (the same _STUD_LDU constant every generation mode uses),
+# along +X. Fixed and deterministic rather than derived from the
+# duplicated part's actual footprint: Transform functions deliberately
+# take no PartCatalog (Package_025's established precedent), and a
+# bare SceneBrick doesn't carry stud_width/stud_length, so there's no
+# footprint to derive it from. This satisfies "a translated position
+# to avoid occupying exactly the same location" -- it does not
+# guarantee no visual overlap for parts larger than 1x1, and doesn't
+# check for or avoid collision with any other existing brick's
+# position either; nothing else in Scene/SceneBrick/Move has ever
+# prevented bricks from overlapping, so Duplicate doesn't introduce
+# that check just for itself.
+#
+_DUPLICATE_OFFSET = glm.vec3(20.0, 0.0, 0.0)
 
 
 class TransformError(Exception):
@@ -101,3 +134,46 @@ def remove_brick(
             new_scene.add_brick(brick)
 
     return new_scene
+
+
+def duplicate_brick(
+    scene: Scene,
+    brick_id: int,
+) -> tuple[Scene, int]:
+    """
+    Return a new Scene with a copy of the brick matching brick_id
+    appended -- same part_name, rotation, and color_code, a freshly
+    generated unique id (scene.next_available_id()), and a position
+    offset by _DUPLICATE_OFFSET so it doesn't occupy exactly the same
+    location. The original brick is unchanged and still present.
+    Raises TransformError if brick_id doesn't match any brick
+    currently in scene.
+
+    Returns (new_scene, new_id) -- see the module docstring for why
+    this is the one function here that returns more than a Scene.
+    """
+
+    original = scene.get(brick_id)
+
+    if original is None:
+
+        raise TransformError(
+            f"No brick with id {brick_id} in this Scene."
+        )
+
+    new_id = scene.next_available_id()
+
+    duplicate = dataclasses.replace(
+        original,
+        id=new_id,
+        position=original.position + _DUPLICATE_OFFSET,
+    )
+
+    new_scene = Scene()
+
+    for brick in scene:
+        new_scene.add_brick(brick)
+
+    new_scene.add_brick(duplicate)
+
+    return new_scene, new_id

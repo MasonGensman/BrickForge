@@ -15,6 +15,7 @@ from brickforge.serialization.schema import SceneSerializationError
 from brickforge.services.part_catalog import PartCatalog
 from brickforge.transform.scene_transform import (
     TransformError,
+    duplicate_brick,
     remove_brick,
     replace_brick,
 )
@@ -51,7 +52,7 @@ class MainWindow(QMainWindow):
         menu = self.menuBar()
 
         file_menu = menu.addMenu("File")
-        menu.addMenu("Edit")
+        edit_menu = menu.addMenu("Edit")
         menu.addMenu("View")
         menu.addMenu("Project")
         menu.addMenu("Help")
@@ -71,6 +72,20 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(save_project_action)
         file_menu.addAction(save_project_as_action)
+
+        #
+        # No dedicated tool/button for Duplicate -- there's no fourth
+        # mouse button left to bind (Move/Rotate/Delete already claim
+        # Left/Right/Middle), and it has no continuous parameter to
+        # drive through a viewport drag anyway. A single menu action
+        # operating directly on the current selection, mirroring how
+        # New/Open/Save are already self-contained QAction -> MainWindow
+        # handlers with no ActiveToolManager involvement (Package_033).
+        #
+        duplicate_action = QAction("Duplicate Selected Brick", self)
+        duplicate_action.triggered.connect(self.on_duplicate_selected)
+
+        edit_menu.addAction(duplicate_action)
 
     def create_widgets(self):
         #
@@ -202,6 +217,55 @@ class MainWindow(QMainWindow):
 
         self.status.showMessage(
             f"{result.verb} brick #{result.brick_id}."
+        )
+
+    def on_duplicate_selected(self):
+        """
+        Duplicate the currently selected brick, triggered directly by
+        the Edit menu action -- no viewport interaction, no
+        ActiveToolManager/ToolResult involvement, since there's no
+        mouse gesture to interpret (Package_033).
+        """
+
+        selected_id = self.selection_manager.selected_id()
+
+        if selected_id is None:
+
+            self.status.showMessage(
+                "No brick selected to duplicate."
+            )
+            return
+
+        scene = self.viewport.renderer.scene
+
+        try:
+            new_scene, new_id = duplicate_brick(scene, selected_id)
+
+        except TransformError as error:
+
+            self.status.showMessage(
+                f"Duplicate failed: {error}"
+            )
+            return
+
+        #
+        # set_current_scene() preserves selection on the ORIGINAL by
+        # default (its id is still present) -- explicitly move
+        # selection onto the new duplicate afterward, so the user can
+        # immediately move/adjust the fresh copy without an extra
+        # click. The first operation in this session that needs to
+        # reassign selection to a different id rather than just
+        # preserve or clear the existing one.
+        #
+        self.set_current_scene(new_scene)
+
+        self.selection_manager.select(new_id)
+        self.viewport.renderer.set_selected_id(new_id)
+
+        self.project_manager.current_project.mark_dirty()
+
+        self.status.showMessage(
+            f"Duplicated brick #{selected_id} -> #{new_id}."
         )
 
     def set_current_scene(

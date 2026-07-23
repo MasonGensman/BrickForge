@@ -43,6 +43,26 @@ class Scene:
 
         return None
 
+    def next_available_id(self) -> int:
+        """
+        Return an id guaranteed not to collide with any brick
+        currently in this Scene. Read-only -- never mutates the
+        Scene, and never reserves the returned id; a caller that
+        doesn't use it may call this again and get the same value.
+
+        Scene-local, not globally unique across the app's lifetime --
+        every existing id-assignment scheme in this codebase (each
+        generation mode, the demo bricks) already restarts freely
+        with each new Scene, so this doesn't introduce a new kind of
+        uniqueness guarantee, only extends the existing one to a
+        fresh id a caller didn't already have in hand.
+        """
+
+        return max(
+            (brick.id for brick in self.bricks),
+            default=-1,
+        ) + 1
+
     def clear(self) -> None:
 
         self.bricks = []
