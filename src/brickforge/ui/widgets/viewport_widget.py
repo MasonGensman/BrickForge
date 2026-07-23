@@ -9,6 +9,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
 from brickforge.render.renderer import Renderer, ScenePreview
 from brickforge.tools.move_tool import MoveTool
+from brickforge.tools.rotate_tool import RotateTool
 
 
 class ViewportWidget(QOpenGLWidget):
@@ -31,6 +32,13 @@ class ViewportWidget(QOpenGLWidget):
     #
     brick_moved = Signal(object, object)
 
+    #
+    # Emits (brick_id, new_rotation) once a brick-rotation drag
+    # completes with a real angle -- same shape as brick_moved,
+    # reacted to the same way in MainWindow. Package_030.
+    #
+    brick_rotated = Signal(object, object)
+
     def __init__(self):
         super().__init__()
 
@@ -39,6 +47,7 @@ class ViewportWidget(QOpenGLWidget):
 
         self.renderer = Renderer()
         self.move_tool = MoveTool()
+        self.rotate_tool = RotateTool()
 
         #
         # Create timer but don't start it until
@@ -113,10 +122,38 @@ class ViewportWidget(QOpenGLWidget):
 
             return
 
-        if event.button() in (
-            Qt.RightButton,
-            Qt.MiddleButton,
-        ):
+        if event.button() == Qt.RightButton:
+
+            brick_id = self.renderer.pick(
+                event.position().x(),
+                event.position().y(),
+            )
+
+            if (
+                brick_id is not None
+                and brick_id == self.renderer.selected_id
+            ):
+
+                #
+                # Pressing the already-selected brick begins a rotate
+                # drag instead of arming camera orbit -- mirrors how
+                # Left-button was extended for MoveTool (Package_029),
+                # now on Right-button for RotateTool (Package_030).
+                #
+                brick = self.renderer.scene.get(brick_id)
+
+                self.rotate_tool.begin(
+                    brick,
+                    event.position().x(),
+                )
+
+                return
+
+            self.last_mouse_position = event.position()
+
+            return
+
+        if event.button() == Qt.MiddleButton:
             self.last_mouse_position = event.position()
 
     def mouseReleaseEvent(self, event):
@@ -139,6 +176,21 @@ class ViewportWidget(QOpenGLWidget):
 
             if result is not None:
                 self.brick_moved.emit(*result)
+
+            self.update()
+
+            return
+
+        if self.rotate_tool.is_dragging:
+
+            result = self.rotate_tool.finish(
+                event.position().x()
+            )
+
+            self.renderer.set_preview(None)
+
+            if result is not None:
+                self.brick_rotated.emit(*result)
 
             self.update()
 
@@ -173,6 +225,24 @@ class ViewportWidget(QOpenGLWidget):
                 )
 
                 self.update()
+
+            return
+
+        if self.rotate_tool.is_dragging:
+
+            brick = self.renderer.scene.get(self.rotate_tool.brick_id)
+
+            self.renderer.set_preview(
+                ScenePreview(
+                    brick_id=self.rotate_tool.brick_id,
+                    position=brick.position,
+                    rotation=self.rotate_tool.update(
+                        event.position().x()
+                    ),
+                )
+            )
+
+            self.update()
 
             return
 

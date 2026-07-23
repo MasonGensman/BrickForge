@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
 
         self.viewport.brick_clicked.connect(self.on_brick_clicked)
         self.viewport.brick_moved.connect(self.on_brick_moved)
+        self.viewport.brick_rotated.connect(self.on_brick_rotated)
 
     def on_brick_selected(self, brick):
         self.status.showMessage(
@@ -181,6 +182,37 @@ class MainWindow(QMainWindow):
 
         self.status.showMessage(
             f"Moved brick #{brick_id}."
+        )
+
+    def on_brick_rotated(self, brick_id, new_rotation):
+
+        scene = self.viewport.renderer.scene
+
+        updated_brick = dataclasses.replace(
+            scene.get(brick_id),
+            rotation=new_rotation,
+        )
+
+        try:
+            new_scene = replace_brick(scene, updated_brick)
+
+        except TransformError as error:
+
+            self.status.showMessage(
+                f"Rotate failed: {error}"
+            )
+            return
+
+        #
+        # Package_028: set_current_scene() clears selection only if
+        # the selected id is no longer present -- replace_brick()
+        # preserves every id, so the rotated brick stays selected.
+        #
+        self.set_current_scene(new_scene)
+        self.project_manager.current_project.mark_dirty()
+
+        self.status.showMessage(
+            f"Rotated brick #{brick_id}."
         )
 
     def set_current_scene(
