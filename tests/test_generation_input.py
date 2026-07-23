@@ -1,5 +1,5 @@
 """
-StudWorks Generation Input Tests (Package_034)
+StudWorks Generation Input Tests (Package_034, extended in Package_035)
 
 Uses a real, freshly-written test image (via Qt -- no new dependency,
 matching image_loader.py's own established approach) rather than a
@@ -17,6 +17,7 @@ import numpy as np
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
+from brickforge.analysis.image_analysis import analyze_image
 from brickforge.preparation.generation_input import GenerationInput
 from brickforge.preparation.image_preparation import ImagePreparationSettings
 
@@ -125,6 +126,71 @@ class FromSourceTests(unittest.TestCase):
                 np.array_equal(
                     first.prepared_image.pixels, second.prepared_image.pixels
                 )
+            )
+
+
+class AnalysisFieldTests(unittest.TestCase):
+    """Package_035: GenerationInput.analysis is computed from the
+    prepared image, not the raw source, in the same from_source() call
+    that already builds prepared_image."""
+
+    def test_analysis_is_populated(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            path = _write_test_image(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(path)
+
+            self.assertEqual(
+                generation_input.analysis.width,
+                generation_input.prepared_image.width,
+            )
+            self.assertEqual(
+                generation_input.analysis.height,
+                generation_input.prepared_image.height,
+            )
+
+    def test_analysis_matches_a_direct_call_on_the_prepared_image(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            path = _write_test_image(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(path)
+            expected = analyze_image(generation_input.prepared_image)
+
+            self.assertEqual(
+                generation_input.analysis.dominant_colors,
+                expected.dominant_colors,
+            )
+            self.assertEqual(
+                generation_input.analysis.occupied_bounds,
+                expected.occupied_bounds,
+            )
+            self.assertTrue(
+                np.array_equal(
+                    generation_input.analysis.edges, expected.edges
+                )
+            )
+
+    def test_deterministic_across_two_separate_calls(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            path = _write_test_image(Path(tmp_dir))
+
+            first = GenerationInput.from_source(path)
+            second = GenerationInput.from_source(path)
+
+            self.assertEqual(
+                first.analysis.dominant_colors, second.analysis.dominant_colors
+            )
+            self.assertEqual(
+                first.analysis.occupied_bounds, second.analysis.occupied_bounds
+            )
+            self.assertTrue(
+                np.array_equal(first.analysis.edges, second.analysis.edges)
             )
 
 

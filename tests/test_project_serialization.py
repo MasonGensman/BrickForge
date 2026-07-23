@@ -327,6 +327,61 @@ class ProjectGenerationInputTests(unittest.TestCase):
             _project_signature(project)[2],
         )
 
+    def test_serialized_generation_input_contains_no_analysis_data(self):
+        """Package_035: analysis lives only on the in-memory
+        GenerationInput, regenerated via from_source() -- to_dict()
+        must never embed its arrays (histogram/edges/etc.) in the
+        saved file."""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            image_path = _write_test_image(Path(tmp_dir))
+            generation_input = GenerationInput.from_source(image_path)
+
+            project = build_named_project_with_bricks()
+            project.generation_input = generation_input
+
+            data = project.to_dict()
+            gi_data = data["generation_input"]
+
+            self.assertNotIn("analysis", gi_data)
+            self.assertEqual(
+                set(gi_data.keys()),
+                {"source_path", "content_hash", "settings"},
+            )
+
+    def test_round_trip_regenerates_matching_analysis(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            image_path = _write_test_image(Path(tmp_dir))
+            generation_input = GenerationInput.from_source(image_path)
+
+            project = build_named_project_with_bricks()
+            project.generation_input = generation_input
+
+            save_path = Path(tmp_dir) / "project.sws"
+
+            manager = ProjectManager()
+            manager.current_project = project
+            manager.save(save_path)
+
+            reload_manager = ProjectManager()
+            reloaded = reload_manager.load(save_path)
+
+        reloaded_analysis = reloaded.generation_input.analysis
+        original_analysis = generation_input.analysis
+
+        self.assertEqual(
+            reloaded_analysis.dominant_colors, original_analysis.dominant_colors
+        )
+        self.assertEqual(
+            reloaded_analysis.occupied_bounds, original_analysis.occupied_bounds
+        )
+        self.assertTrue(
+            np.array_equal(reloaded_analysis.edges, original_analysis.edges)
+        )
+
     def test_missing_source_image_degrades_gracefully_on_load(self):
 
         with tempfile.TemporaryDirectory() as tmp_dir:
