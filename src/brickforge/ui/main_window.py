@@ -148,6 +148,48 @@ class MainWindow(QMainWindow):
 
         self.viewport.update()
 
+    def set_current_scene(
+        self,
+        scene: Scene,
+    ) -> None:
+        """
+        Replace the active Scene everywhere it's tracked: the current
+        Project and the Renderer. The one consistent path New Project,
+        Open Project, Generate LEGO Model, and future Transform
+        operations all follow (Package_028).
+
+        Selection is preserved if it still references an id present
+        in the new Scene, and cleared otherwise -- one rule that
+        handles both "Scene was completely replaced" (New/Open/
+        Generate -- the old id will not exist in the new Scene, so
+        selection clears, matching Package_027's behavior) and "Scene
+        was produced by a Transform" (replace_brick() guarantees the
+        exact same id set as its input, so selection survives)
+        without the caller needing to say which case it is. This is
+        SelectionManager's own documented invariant --
+        selected_id is either None or references an existing
+        SceneBrick.id in the active Scene -- enforced here as code
+        rather than left to each caller to remember.
+
+        Does not mark the project dirty -- New/Open must not (fresh/
+        just-loaded-from-disk state), while Generate and future
+        Transform operations should; that stays the caller's call.
+        """
+
+        self.project_manager.current_project.scene = scene
+        self.viewport.renderer.set_scene(scene)
+
+        selected_id = self.selection_manager.selected_id()
+
+        if selected_id is not None and scene.get(selected_id) is None:
+            self.selection_manager.clear()
+
+        self.viewport.renderer.set_selected_id(
+            self.selection_manager.selected_id()
+        )
+
+        self.viewport.update()
+
     def on_generate_lego(
         self,
         image,
@@ -181,29 +223,8 @@ class MainWindow(QMainWindow):
                 settings,
             )
 
-            renderer.set_scene(scene)
-
-            self.viewport.update()
-
-            #
-            # Package_026: the current project owns its own Scene, so
-            # Save operates on current_project directly rather than
-            # taking a separate Scene parameter -- this is the one
-            # place that Scene changes, so it's the one place that
-            # needs to keep current_project.scene in sync.
-            #
-            self.project_manager.current_project.scene = scene
+            self.set_current_scene(scene)
             self.project_manager.current_project.mark_dirty()
-
-            #
-            # A freshly generated Scene has its own fresh ids -- a
-            # previously-selected id could otherwise silently point
-            # at an unrelated brick that happens to share the same
-            # id. Selection is only ever valid for the currently
-            # active Scene (Package_027).
-            #
-            self.selection_manager.clear()
-            renderer.set_selected_id(None)
 
             self.status.showMessage(
                 f"Generated {len(list(scene))} bricks."
@@ -219,12 +240,9 @@ class MainWindow(QMainWindow):
 
         self.project_manager.new_project()
 
-        self.viewport.renderer.set_scene(Scene())
-
-        self.selection_manager.clear()
-        self.viewport.renderer.set_selected_id(None)
-
-        self.viewport.update()
+        self.set_current_scene(
+            self.project_manager.current_project.scene
+        )
 
         self.status.showMessage("New project created.")
 
@@ -250,12 +268,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self.viewport.renderer.set_scene(project.scene)
-
-        self.selection_manager.clear()
-        self.viewport.renderer.set_selected_id(None)
-
-        self.viewport.update()
+        self.set_current_scene(project.scene)
 
         self.status.showMessage(
             f"Opened {project.name} ({len(list(project.scene))} bricks)."
