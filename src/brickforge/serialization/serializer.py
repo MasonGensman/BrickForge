@@ -1,12 +1,18 @@
 """
 StudWorks Scene Serializer
 
-serialize_scene() is the one public entry point: write a Scene to a
-JSON file in StudWorks' native format (schema.py). Never mutates the
-input Scene. Deterministic: bricks are written in the Scene's own
-existing order, already deterministic transitively from whichever
-generation/optimization stages produced it -- no re-sorting here,
-matching Package_024's exporter's own reasoning.
+serialize_scene() is the one public entry point for writing a Scene
+directly to a file, in StudWorks' native JSON format (schema.py).
+scene_to_document() (Package_026) exposes the same conversion as a
+plain dict, so a caller that needs to embed a Scene document inside a
+larger document (Package_026's Project) doesn't have to round-trip
+through a temporary file -- serialize_scene() is now a thin wrapper
+around it plus the actual file write.
+
+Never mutates the input Scene. Deterministic: bricks are written in
+the Scene's own existing order, already deterministic transitively
+from whichever generation/optimization stages produced it -- no
+re-sorting here, matching Package_024's exporter's own reasoning.
 
 Full floating-point precision throughout -- unlike Package_024's
 LDraw writer, which deliberately truncates to 6 decimal places and
@@ -40,11 +46,12 @@ from brickforge.serialization.schema import (
 )
 
 
-def serialize_scene(scene: Scene, path: str | Path) -> None:
+def scene_to_document(scene: Scene) -> dict:
     """
-    Serialize scene to path as StudWorks' native JSON Scene format.
-
-    Raises OSError (unwrapped) if the file can't be written.
+    Convert scene to its JSON-serializable StudWorks Scene document
+    (schema.py) -- the exact shape serialize_scene() writes to disk,
+    exposed as a plain dict so callers (e.g. Package_026's Project)
+    can embed it inside a larger document.
     """
 
     bricks = []
@@ -59,11 +66,21 @@ def serialize_scene(scene: Scene, path: str | Path) -> None:
             "color_code": brick.color_code,
         })
 
-    document = {
+    return {
         "format": FORMAT_IDENTIFIER,
         "schema_version": SCHEMA_VERSION,
         "bricks": bricks,
     }
+
+
+def serialize_scene(scene: Scene, path: str | Path) -> None:
+    """
+    Serialize scene to path as StudWorks' native JSON Scene format.
+
+    Raises OSError (unwrapped) if the file can't be written.
+    """
+
+    document = scene_to_document(scene)
 
     path = Path(path)
 

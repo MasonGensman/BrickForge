@@ -1,13 +1,16 @@
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import QFileDialog, QMainWindow
 
 from brickforge._version import window_title
+from brickforge.engine.scene import Scene
 from brickforge.generation.generation_mode import GenerationMode
 from brickforge.palette.palette_engine import PaletteEngine
+from brickforge.project.project import ProjectFileError
 from brickforge.resources import resource_path
+from brickforge.serialization.schema import SceneSerializationError
 from brickforge.services.part_catalog import PartCatalog
-from brickforge.ui.toolbar import create_toolbar
+from brickforge.ui.toolbar import create_toolbar, project_manager
 from brickforge.ui.widgets import (
     BrickLibraryWidget,
     BrickForgeStatusBar,
@@ -15,6 +18,8 @@ from brickforge.ui.widgets import (
     PropertiesWidget,
     ViewportWidget,
 )
+
+_PROJECT_FILE_FILTER = "StudWorks Project (*.sws)"
 
 
 class MainWindow(QMainWindow):
@@ -37,13 +42,39 @@ class MainWindow(QMainWindow):
     def create_menu(self):
         menu = self.menuBar()
 
-        menu.addMenu("File")
+        file_menu = menu.addMenu("File")
         menu.addMenu("Edit")
         menu.addMenu("View")
         menu.addMenu("Project")
         menu.addMenu("Help")
 
+        new_project_action = QAction("New Project", self)
+        open_project_action = QAction("Open Project...", self)
+        save_project_action = QAction("Save Project", self)
+        save_project_as_action = QAction("Save Project As...", self)
+
+        new_project_action.triggered.connect(self.on_new_project)
+        open_project_action.triggered.connect(self.on_open_project)
+        save_project_action.triggered.connect(self.on_save_project)
+        save_project_as_action.triggered.connect(self.on_save_project_as)
+
+        file_menu.addAction(new_project_action)
+        file_menu.addAction(open_project_action)
+        file_menu.addSeparator()
+        file_menu.addAction(save_project_action)
+        file_menu.addAction(save_project_as_action)
+
     def create_widgets(self):
+        #
+        # The shared ProjectManager (currently a module-level singleton
+        # owned by ui.toolbar, not restructured here -- see Package_026's
+        # inspection notes). Starting with an implicit "Untitled Project"
+        # means current_project is never None during normal operation,
+        # so Save/Save As don't need a separate "no project open" case.
+        #
+        self.project_manager = project_manager
+        self.project_manager.new_project()
+
         #
         # One PartCatalog, built once and shared by the Brick Library
         # and generation -- avoids re-detecting/re-parsing the LDraw
@@ -117,6 +148,16 @@ class MainWindow(QMainWindow):
 
             self.viewport.update()
 
+            #
+            # Package_026: the current project owns its own Scene, so
+            # Save operates on current_project directly rather than
+            # taking a separate Scene parameter -- this is the one
+            # place that Scene changes, so it's the one place that
+            # needs to keep current_project.scene in sync.
+            #
+            self.project_manager.current_project.scene = scene
+            self.project_manager.current_project.mark_dirty()
+
             self.status.showMessage(
                 f"Generated {len(list(scene))} bricks."
             )
@@ -126,3 +167,84 @@ class MainWindow(QMainWindow):
             self.status.showMessage(
                 f"Generation failed: {error}"
             )
+
+    def on_new_project(self):
+
+        self.project_manager.new_project()
+
+        self.viewport.renderer.set_scene(Scene())
+        self.viewport.update()
+
+        self.status.showMessage("New project created.")
+
+    def on_open_project(self):
+
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Project",
+            "",
+            _PROJECT_FILE_FILTER,
+        )
+
+        if not path:
+            return
+
+        try:
+            project = self.project_manager.load(path)
+
+        except (OSError, ProjectFileError, SceneSerializationError) as error:
+
+            self.status.showMessage(
+                f"Failed to open project: {error}"
+            )
+            return
+
+        self.viewport.renderer.set_scene(project.scene)
+        self.viewport.update()
+
+        self.status.showMessage(
+            f"Opened {project.name} ({len(list(project.scene))} bricks)."
+        )
+
+    def on_save_project(self):
+
+        current_path = self.project_manager.current_project.file_path
+
+        if current_path is None:
+            self.on_save_project_as()
+            return
+
+        self._save_project_to(current_path)
+
+    def on_save_project_as(self):
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Project As",
+            f"{self.project_manager.current_project.name}.sws",
+            _PROJECT_FILE_FILTER,
+        )
+
+        if not path:
+            return
+
+        if not path.lower().endswith(".sws"):
+            path += ".sws"
+
+        self._save_project_to(path)
+
+    def _save_project_to(self, path):
+
+        try:
+            self.project_manager.save(path)
+
+        except OSError as error:
+
+            self.status.showMessage(
+                f"Failed to save project: {error}"
+            )
+            return
+
+        self.status.showMessage(
+            f"Saved {self.project_manager.current_project.name}."
+        )

@@ -25,9 +25,16 @@ def create_toolbar(window):
     undo_action.setStatusTip("Undo")
     redo_action.setStatusTip("Redo")
 
-    new_action.triggered.connect(
-        lambda: project_manager.new_project()
-    )
+    #
+    # New/Open/Save delegate to MainWindow (Package_026) so viewport
+    # updates and status messages stay in one place, shared with the
+    # matching File menu actions -- rather than this toolbar module
+    # driving project_manager directly with no UI feedback, as "New"
+    # alone previously did.
+    #
+    new_action.triggered.connect(window.on_new_project)
+    open_action.triggered.connect(window.on_open_project)
+    save_action.triggered.connect(window.on_save_project)
 
     toolbar.addAction(new_action)
     toolbar.addAction(open_action)

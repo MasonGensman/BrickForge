@@ -1,0 +1,13 @@
+{
+  "format": "StudWorks Project",
+  "schema_version": 1,
+  "name": "Untitled Project",
+  "created": "2026-01-01T00:00:00",
+  "modified": "2026-01-01T00:05:00",
+  "app_version": "0.2.0",
+  "scene": {
+    "format": "StudWorks Scene",
+    "schema_version": 1,
+    "bricks": []
+  }
+}

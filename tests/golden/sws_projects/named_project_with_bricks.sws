@@ -1,0 +1,46 @@
+{
+  "format": "StudWorks Project",
+  "schema_version": 1,
+  "name": "My House",
+  "created": "2026-01-01T00:00:00",
+  "modified": "2026-01-01T00:05:00",
+  "app_version": "0.2.0",
+  "scene": {
+    "format": "StudWorks Scene",
+    "schema_version": 1,
+    "bricks": [
+      {
+        "id": 0,
+        "part_name": "3005.dat",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "color_code": 4
+      },
+      {
+        "id": 1,
+        "part_name": "3004.dat",
+        "position": [
+          20.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.7071067690849304,
+          0.0,
+          0.7071067690849304
+        ],
+        "color_code": null
+      }
+    ]
+  }
+}
