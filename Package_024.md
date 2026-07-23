@@ -206,3 +206,107 @@ already imports `.ldr` directly via File → Import).
 - **`.mpd`/steps/groups**: explicitly deferred, per scope.
 - All prior packages' outstanding recommendations remain outstanding
   and unaffected by this package.
+
+---
+
+# Amendment: Golden-File Regression Tests (2026-07-22)
+
+Documentation-and-test-only addendum — no production code changed
+(`git diff --stat -- src/` is empty for this amendment).
+
+## Why golden files exist
+
+Package_024 documents the exporter as deterministic: identical `Scene`
+input must always produce identical output. That's a claim, verified
+manually during the original package work but not permanently
+enforced anywhere. A golden-file test closes that gap: four canonical
+`Scene`s are exported and compared, byte-for-byte, against fixed
+reference files on every run, so any future change to `export/`,
+`generation/`, or `optimization/` that alters output for these fixed
+inputs is caught immediately rather than discovered later by manual
+inspection.
+
+**No test framework dependency was added.** `requirements.txt`/
+`pyproject.toml` declare no test framework today, and this amendment's
+scope is explicitly "tests + test assets + docs only." The suite uses
+Python's standard-library `unittest` rather than introducing `pytest`
+as a new dependency — zero footprint beyond the `tests/` directory
+itself.
+
+## What was added
+
+- `tests/golden/single_brick.ldr`, `merged_column.ldr`,
+  `flat_mosaic_3x3.ldr`, `height_relief_3x3.ldr` — generated using the
+  exporter itself (`export_scene()`), as instructed, then reviewed
+  before being treated as immutable references.
+- `tests/test_export_golden_files.py` — builds each canonical `Scene`
+  and compares its exported output against the corresponding golden
+  file.
+
+**Canonical scene coverage, deliberately spanning both raw and
+optimized output**: `single_brick` (the simplest possible case);
+`merged_column` (four `1x1` bricks run through the real
+`optimize_scene()` pipeline, collapsing to one `1x4` — exercises
+optimizer-produced output specifically, confirmed by a dedicated
+sanity-check test that four bricks in become exactly one brick out);
+`flat_mosaic_3x3` and `height_relief_3x3` (real, not hand-built,
+generation output from both registered `GenerationMode`s — the latter
+exercises multi-layer/3D stacking, the most geometrically complex case
+export handles today).
+
+**Environment independence, a deliberate and necessary design
+choice**: golden-file construction uses `PartCatalog.from_seed()`
+(never `load_best_available()`) and the bundled fallback
+`LDConfig.ldr` via `resources.resource_path()` (never
+`find_ldraw_library()`'s resolved result). Both are fixed and
+version-controlled, identical on every machine. Building golden-file
+tests against whichever real LDraw library happens to be installed
+locally would make the tests non-reproducible across environments —
+exactly the kind of hidden dependency a regression test must not have.
+
+## Why byte-for-byte comparison, with no normalization
+
+The entire purpose of this test is to catch *any* unintended
+difference — line order, number formatting, floating-point precision,
+whitespace, newline convention. Normalizing any of these away in the
+comparison would silently accept the exact class of regression the
+test exists to catch. This was verified directly, not just asserted:
+the golden file comparison was deliberately broken (corrupting one
+reference file), confirmed the test suite fails with a clear diff, then
+the file was restored and confirmed byte-identical to its original
+before being treated as the reference again. (Incidentally, this also
+confirmed golden files are written with Windows CRLF line endings —
+Python's default text-mode newline translation on this platform,
+matching traditional LDraw file convention, not something explicitly
+forced in `ldraw_writer.py`.)
+
+## Golden-file update policy
+
+Golden files are regenerated **only** when an export-behavior change
+is intentional — never simply because a test fails. A failing
+golden-file test is a signal to investigate *why* output changed
+first; if, after review, the change is confirmed deliberate (e.g. a
+future package intentionally changes number formatting, header
+content, or brick ordering), the golden files are regenerated using
+the same builder functions in `test_export_golden_files.py`, the diff
+is reviewed, and the updated golden files are committed **alongside**
+the change that caused them — never as a silent, separate commit that
+just makes a failing test pass again.
+
+## Verification performed
+
+- All 4 tests pass: golden files exist, exported output matches each
+  byte-for-byte, repeated exports of the same Scene remain identical,
+  and `merged_column` is confirmed to genuinely exercise optimizer
+  output (4 bricks in, 1 out).
+- Confirmed the test suite actually detects regressions (not
+  vacuously passing): deliberately corrupted `single_brick.ldr`,
+  re-ran the suite, confirmed a clear failure with a diff pointing at
+  the exact mismatch, then restored the file and confirmed byte-exact
+  restoration before re-running to confirm a pass.
+- `git diff --stat -- src/` confirms zero production code changes.
+- `git status` confirms exactly the planned scope: `tests/golden/`
+  (4 new files), `tests/test_export_golden_files.py`, and this
+  amendment to `Package_024.md` — plus the long-standing pre-existing
+  unstaged changes to `docs/ARCHITECTURE.md` and `.vscode/settings.json`
+  (left alone, as always).
