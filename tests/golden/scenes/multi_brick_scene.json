@@ -1,0 +1,54 @@
+{
+  "format": "StudWorks Scene",
+  "schema_version": 1,
+  "bricks": [
+    {
+      "id": 0,
+      "part_name": "3005.dat",
+      "position": [
+        -20.0,
+        0.0,
+        20.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "color_code": 4
+    },
+    {
+      "id": 5,
+      "part_name": "3004.dat",
+      "position": [
+        0.0,
+        24.0,
+        -20.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "color_code": null
+    },
+    {
+      "id": 99,
+      "part_name": "3023.dat",
+      "position": [
+        40.5,
+        -8.25,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "color_code": 15
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "format": "StudWorks Scene",
+  "schema_version": 1,
+  "bricks": [
+    {
+      "id": 1,
+      "part_name": "3004.dat",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.7071067690849304,
+        0.0,
+        0.7071067690849304
+      ],
+      "color_code": 1
+    }
+  ]
+}
