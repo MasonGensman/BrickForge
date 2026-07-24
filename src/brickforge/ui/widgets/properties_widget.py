@@ -26,7 +26,7 @@ class PropertiesWidget(QDockWidget):
 
         self.label.setText(
             "No brick selected.\n\n"
-            "Select a brick from the library."
+            "Select a brick from the library or the viewport."
         )
 
     def display_brick(self, brick: BrickDefinition):

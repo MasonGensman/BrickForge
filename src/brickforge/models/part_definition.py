@@ -2,10 +2,9 @@
 BrickForge Brick Definition
 
 Catalog-level knowledge about a LEGO part: what it is, its dimensions, the
-colors it comes in, and its LDraw filename. Distinct from both
-brickforge.models.brick.Brick (a UI catalog display row) and
+colors it comes in, and its LDraw filename. Distinct from
 brickforge.engine.scene_brick.SceneBrick (a placed scene instance) -- this
-is the part-type "intelligence" record the two of those don't carry.
+is the part-type "intelligence" record that one doesn't carry.
 """
 
 from dataclasses import dataclass, field

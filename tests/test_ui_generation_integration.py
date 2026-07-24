@@ -170,6 +170,7 @@ class _FakeMainWindow:
     set_current_scene = MainWindow.set_current_scene
     on_generate_model = MainWindow.on_generate_model
     _refresh_window_title = MainWindow._refresh_window_title
+    _resolve_ldraw_library = MainWindow._resolve_ldraw_library
 
     def __init__(self, catalog, library_path, project):
 

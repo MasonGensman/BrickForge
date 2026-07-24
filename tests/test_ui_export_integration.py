@@ -70,6 +70,7 @@ class _FakeMainWindow:
     on_export_model = MainWindow.on_export_model
     _export_model_to = MainWindow._export_model_to
     _refresh_window_title = MainWindow._refresh_window_title
+    _resolve_ldraw_library = MainWindow._resolve_ldraw_library
 
     def __init__(self, catalog, project):
 

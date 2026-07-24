@@ -64,6 +64,20 @@ class MainWindow(QMainWindow):
         save_project_as_action = QAction("Save Project As...", self)
         export_model_action = QAction("Export Model...", self)
 
+        #
+        # Package_047: shortcuts live on these menu QActions only, not
+        # on the toolbar's separate QAction instances for the same
+        # operations (ui/toolbar.py) -- two enabled QActions sharing an
+        # identical shortcut in the same window makes it ambiguous to
+        # Qt (neither fires; a "Ambiguous shortcut overload" warning is
+        # raised instead), so each shortcut needs exactly one owner.
+        #
+        new_project_action.setShortcut("Ctrl+N")
+        open_project_action.setShortcut("Ctrl+O")
+        save_project_action.setShortcut("Ctrl+S")
+        save_project_as_action.setShortcut("Ctrl+Shift+S")
+        export_model_action.setShortcut("Ctrl+E")
+
         new_project_action.triggered.connect(self.on_new_project)
         open_project_action.triggered.connect(self.on_open_project)
         save_project_action.triggered.connect(self.on_save_project)
@@ -88,6 +102,7 @@ class MainWindow(QMainWindow):
         # handlers with no ActiveToolManager involvement (Package_033).
         #
         duplicate_action = QAction("Duplicate Selected Brick", self)
+        duplicate_action.setShortcut("Ctrl+D")
         duplicate_action.triggered.connect(self.on_duplicate_selected)
 
         edit_menu.addAction(duplicate_action)
@@ -270,8 +285,17 @@ class MainWindow(QMainWindow):
 
         except TransformError as error:
 
+            #
+            # Package_047: result.verb is always past tense ("Moved",
+            # "Rotated", "Deleted" -- tools/active_tool_manager.py),
+            # so gluing it directly onto "failed" read as broken
+            # English ("Moved failed: ..."). The " -- failed:"
+            # separator keeps the exact same "{verb} brick #{id}"
+            # prefix the success message below uses, without needing
+            # a verb-tense conversion.
+            #
             self.status.showMessage(
-                f"{result.verb} failed: {error}"
+                f"{result.verb} brick #{result.brick_id} — failed: {error}"
             )
             return
 
@@ -398,12 +422,15 @@ class MainWindow(QMainWindow):
 
         self.viewport.update()
 
-    def on_generate_lego(
-        self,
-        image,
-        mode: GenerationMode,
-        settings,
-    ):
+    def _resolve_ldraw_library(self):
+        """
+        Returns the active LDraw library, or None if the current
+        Renderer has no BrickManager/library resolved -- already
+        showing the "not available" status message in that case, so
+        every caller can just check for None and return. Shared by
+        both generation handlers below; previously duplicated verbatim
+        in each (Package_047).
+        """
 
         renderer = self.viewport.renderer
 
@@ -417,6 +444,19 @@ class MainWindow(QMainWindow):
             self.status.showMessage(
                 "LDraw library not available; cannot generate."
             )
+
+        return library
+
+    def on_generate_lego(
+        self,
+        image,
+        mode: GenerationMode,
+        settings,
+    ):
+
+        library = self._resolve_ldraw_library()
+
+        if library is None:
             return
 
         try:
@@ -463,20 +503,15 @@ class MainWindow(QMainWindow):
         already exists on Project (Package_036) -- always None today,
         since no UI sets it yet, but this handler already respects it
         correctly the moment a future package adds one.
+
+        Shares _resolve_ldraw_library() with on_generate_lego() above
+        (Package_047) -- both handlers previously duplicated the same
+        library-resolution guard verbatim.
         """
 
-        renderer = self.viewport.renderer
-
-        library = (
-            renderer.brick_manager.library
-            if renderer.brick_manager is not None
-            else None
-        )
+        library = self._resolve_ldraw_library()
 
         if library is None:
-            self.status.showMessage(
-                "LDraw library not available; cannot generate."
-            )
             return
 
         try:
