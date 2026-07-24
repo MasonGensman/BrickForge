@@ -100,6 +100,18 @@ class ImagePreviewWidget(QDockWidget):
 
         self.import_button = QPushButton("Import Image...")
 
+        #
+        # Package_046: both generation paths were previously two
+        # unlabeled, visually-identical buttons stacked in this
+        # widget, with nothing telling a first-time user which one to
+        # use or how they differ. These captions + the tooltips below
+        # are UI-only -- neither path's actual behavior changes.
+        #
+        self.legacy_section_label = QLabel(
+            "Legacy Generation (manual mode, no validation)"
+        )
+        self.legacy_section_label.setStyleSheet("font-weight: bold;")
+
         self.mode_label = QLabel("Generation Mode:")
         self.mode_combo = QComboBox()
 
@@ -119,6 +131,11 @@ class ImagePreviewWidget(QDockWidget):
         settings_separator_bottom.setFrameShadow(QFrame.Sunken)
 
         self.generate_button = QPushButton("Generate LEGO")
+        self.generate_button.setToolTip(
+            "Generate using the selected mode above (Flat Mosaic or "
+            "Height Relief). Supports manual part selection and 3D "
+            "height relief, but does not run validation or repair."
+        )
 
         #
         # Package_044: a second, independent button for the new
@@ -128,7 +145,29 @@ class ImagePreviewWidget(QDockWidget):
         # GenerationInput and GenerationConstraints, not an
         # ImageResource and a mode-specific settings object).
         #
+        # Package_046: labeled/captioned as the recommended default --
+        # it runs the full deterministic pipeline (automatic part
+        # selection, optimization, validation, and repair) end to end,
+        # whereas the legacy path above requires manually picking a
+        # mode and part and gets none of that. The legacy path remains
+        # necessary for Height Relief and manual part selection, which
+        # generate_model() has no equivalent for (see HANDOFF.md
+        # §2.8) -- this is a labeling change only, not a default
+        # selection or removal of either path.
+        #
+        self.new_pipeline_section_label = QLabel(
+            "Standard Pipeline (Recommended)"
+        )
+        self.new_pipeline_section_label.setStyleSheet(
+            "font-weight: bold;"
+        )
+
         self.generate_model_button = QPushButton("Generate (New Pipeline)")
+        self.generate_model_button.setToolTip(
+            "Generate using the new deterministic pipeline: automatic "
+            "part selection, optimization, validation, and repair. "
+            "Recommended for most images."
+        )
 
         preview_separator = QFrame()
         preview_separator.setFrameShape(QFrame.HLine)
@@ -145,13 +184,19 @@ class ImagePreviewWidget(QDockWidget):
         self.info.setWordWrap(True)
 
         layout.addWidget(self.import_button)
+
+        layout.addWidget(self.new_pipeline_section_label)
+        layout.addWidget(self.generate_model_button)
+
+        layout.addWidget(settings_separator_top)
+
+        layout.addWidget(self.legacy_section_label)
         layout.addWidget(self.mode_label)
         layout.addWidget(self.mode_combo)
-        layout.addWidget(settings_separator_top)
         layout.addWidget(self.settings_container)
-        layout.addWidget(settings_separator_bottom)
         layout.addWidget(self.generate_button)
-        layout.addWidget(self.generate_model_button)
+
+        layout.addWidget(settings_separator_bottom)
         layout.addWidget(preview_separator)
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.info)

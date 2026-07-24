@@ -69,6 +69,7 @@ class _FakeMainWindow:
 
     on_export_model = MainWindow.on_export_model
     _export_model_to = MainWindow._export_model_to
+    _refresh_window_title = MainWindow._refresh_window_title
 
     def __init__(self, catalog, project):
 
@@ -77,6 +78,16 @@ class _FakeMainWindow:
 
         self.project_manager = ProjectManager()
         self.project_manager.current_project = project
+
+        #
+        # Package_046: GenerateThenExportEndToEndTests below also
+        # binds on_generate_model() onto this stand-in, which now
+        # refreshes the window title on success.
+        #
+        self.window_titles = []
+
+    def setWindowTitle(self, title):
+        self.window_titles.append(title)
 
 
 class ExportModelToTests(unittest.TestCase):

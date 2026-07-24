@@ -57,9 +57,6 @@ class MainWindow(QMainWindow):
 
         file_menu = menu.addMenu("File")
         edit_menu = menu.addMenu("Edit")
-        menu.addMenu("View")
-        menu.addMenu("Project")
-        menu.addMenu("Help")
 
         new_project_action = QAction("New Project", self)
         open_project_action = QAction("Open Project...", self)
@@ -134,7 +131,9 @@ class MainWindow(QMainWindow):
 
         self.status = BrickForgeStatusBar()
         self.setStatusBar(self.status)
-        self.status.showMessage("BrickForge Ready")
+        self.status.showMessage("StudWorks Ready")
+
+        self._refresh_window_title()
 
     def connect_signals(self):
         self.library.brick_selected.connect(self.properties.display_brick)
@@ -160,6 +159,26 @@ class MainWindow(QMainWindow):
             f"Selected: {brick.name} ({brick.part_number})"
         )
 
+    def _refresh_window_title(self):
+        """
+        Package_046: reflects the current project's name and unsaved-
+        changes state in the title bar, so "have I saved?" doesn't
+        rely solely on a transient status message. Called explicitly
+        at the end of every handler that changes the project or marks
+        it dirty/saved, rather than from set_current_scene() -- several
+        callers (on_brick_transformed, on_generate_model, etc.) call
+        mark_dirty() *after* set_current_scene(), so refreshing inside
+        set_current_scene() itself would always show the previous,
+        stale dirty state.
+        """
+
+        project = self.project_manager.current_project
+        dirty_marker = "*" if project.dirty else ""
+
+        self.setWindowTitle(
+            f"{project.name}{dirty_marker} — {window_title()}"
+        )
+
     def on_image_imported(self, generation_input):
         """
         Stores the freshly-imported GenerationInput on the current
@@ -172,6 +191,7 @@ class MainWindow(QMainWindow):
         )
 
         self.project_manager.current_project.mark_dirty()
+        self._refresh_window_title()
 
         self.status.showMessage(
             f"Imported {generation_input.source_path.name}."
@@ -183,6 +203,7 @@ class MainWindow(QMainWindow):
 
             self.selection_manager.clear()
             self.status.showMessage("Selection cleared.")
+            self.properties.clear()
 
         else:
 
@@ -197,6 +218,23 @@ class MainWindow(QMainWindow):
             self.status.showMessage(
                 f"Selected brick #{brick_id} ({brick.part_name})."
             )
+
+            #
+            # Package_046: mirrors the Brick Library's existing
+            # brick_selected -> properties.display_brick wiring, so a
+            # viewport selection gets the same feedback a library
+            # selection already does. SceneBrick.part_name is the
+            # LDraw filename (e.g. "3005.dat"); PartCatalog.get() is
+            # keyed on the bare part_number ("3005") -- Path(...).stem
+            # matches the exact idiom ldraw_catalog_builder.py already
+            # uses to derive part_number from a filename.
+            #
+            definition = self.catalog.get(Path(brick.part_name).stem)
+
+            if definition is not None:
+                self.properties.display_brick(definition)
+            else:
+                self.properties.clear()
 
         self.viewport.renderer.set_selected_id(
             self.selection_manager.selected_id()
@@ -247,6 +285,22 @@ class MainWindow(QMainWindow):
         #
         self.set_current_scene(new_scene)
         self.project_manager.current_project.mark_dirty()
+        self._refresh_window_title()
+
+        #
+        # Package_046: a Delete of the currently-selected brick clears
+        # SelectionManager (via set_current_scene() above) but never
+        # touched PropertiesWidget, which would otherwise keep showing
+        # a now-deleted brick's info indefinitely. Move/Rotate need no
+        # equivalent check -- selection survives those with the same
+        # part, so whatever PropertiesWidget already shows stays
+        # accurate.
+        #
+        if (
+            result.is_removal
+            and self.selection_manager.selected_id() is None
+        ):
+            self.properties.clear()
 
         self.status.showMessage(
             f"{result.verb} brick #{result.brick_id}."
@@ -296,6 +350,7 @@ class MainWindow(QMainWindow):
         self.viewport.renderer.set_selected_id(new_id)
 
         self.project_manager.current_project.mark_dirty()
+        self._refresh_window_title()
 
         self.status.showMessage(
             f"Duplicated brick #{selected_id} -> #{new_id}."
@@ -378,6 +433,7 @@ class MainWindow(QMainWindow):
 
             self.set_current_scene(scene)
             self.project_manager.current_project.mark_dirty()
+            self._refresh_window_title()
 
             self.status.showMessage(
                 f"Generated {len(list(scene))} bricks."
@@ -445,6 +501,7 @@ class MainWindow(QMainWindow):
                 result.generation_input
             )
             self.project_manager.current_project.mark_dirty()
+            self._refresh_window_title()
 
             brick_count = result.scene_analysis.measurements.brick_count
 
@@ -472,6 +529,7 @@ class MainWindow(QMainWindow):
         self.set_current_scene(
             self.project_manager.current_project.scene
         )
+        self._refresh_window_title()
 
         self.status.showMessage("New project created.")
 
@@ -498,6 +556,7 @@ class MainWindow(QMainWindow):
             return
 
         self.set_current_scene(project.scene)
+        self._refresh_window_title()
 
         self.status.showMessage(
             f"Opened {project.name} ({len(list(project.scene))} bricks)."
@@ -541,6 +600,8 @@ class MainWindow(QMainWindow):
                 f"Failed to save project: {error}"
             )
             return
+
+        self._refresh_window_title()
 
         self.status.showMessage(
             f"Saved {self.project_manager.current_project.name}."

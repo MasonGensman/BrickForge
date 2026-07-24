@@ -169,6 +169,7 @@ class _FakeMainWindow:
 
     set_current_scene = MainWindow.set_current_scene
     on_generate_model = MainWindow.on_generate_model
+    _refresh_window_title = MainWindow._refresh_window_title
 
     def __init__(self, catalog, library_path, project):
 
@@ -185,6 +186,16 @@ class _FakeMainWindow:
 
         self.project_manager = ProjectManager()
         self.project_manager.current_project = project
+
+        #
+        # Package_046: on_generate_model() now also refreshes the
+        # window title on success -- recorded (not just a no-op) so
+        # OnGenerateModelTests can assert on it directly.
+        #
+        self.window_titles = []
+
+    def setWindowTitle(self, title):
+        self.window_titles.append(title)
 
 
 class OnGenerateModelTests(unittest.TestCase):
@@ -216,6 +227,10 @@ class OnGenerateModelTests(unittest.TestCase):
             self.assertIn("Generated", window.status.last_message)
             self.assertIn("Valid", window.status.last_message)
 
+            self.assertEqual(len(window.window_titles), 1)
+            self.assertIn(project.name, window.window_titles[-1])
+            self.assertIn("*", window.window_titles[-1])
+
     def test_missing_library_shows_a_message_and_does_not_generate(self):
 
         catalog = PartCatalog.from_seed()
@@ -235,6 +250,7 @@ class OnGenerateModelTests(unittest.TestCase):
         )
         self.assertIsNone(window.viewport.renderer.scene)
         self.assertFalse(project.dirty)
+        self.assertEqual(window.window_titles, [])
 
     def test_no_candidates_error_is_reported_not_raised(self):
 
