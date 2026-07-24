@@ -23,4 +23,4 @@ It focuses on:
 
 ---
 
-Created by Mason Gensman & OpenAI
+An open source Stud tool created by Mason Gensman
