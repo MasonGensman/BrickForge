@@ -8,6 +8,7 @@ from brickforge._version import window_title
 from brickforge.engine.scene import Scene
 from brickforge.generation.generation_mode import GenerationMode
 from brickforge.palette.palette_engine import PaletteEngine
+from brickforge.pipeline.generation_pipeline import generate_model
 from brickforge.project.project import ProjectFileError
 from brickforge.resources import resource_path
 from brickforge.selection.selection_manager import SelectionManager
@@ -134,6 +135,10 @@ class MainWindow(QMainWindow):
 
         self.image_preview.generate_requested.connect(
             self.on_generate_lego
+        )
+
+        self.image_preview.generate_model_requested.connect(
+            self.on_generate_model
         )
 
         self.image_preview.image_imported.connect(
@@ -369,6 +374,82 @@ class MainWindow(QMainWindow):
 
             self.status.showMessage(
                 f"Generated {len(list(scene))} bricks."
+            )
+
+        except (OSError, ValueError) as error:
+
+            self.status.showMessage(
+                f"Generation failed: {error}"
+            )
+
+    def on_generate_model(self, generation_input):
+        """
+        Package_044: generation via generate_model() (Package_043),
+        additive alongside on_generate_lego()'s legacy GenerationMode
+        path above -- not a replacement for it. generate_model() has no
+        equivalent of Height Relief or Flat Mosaic's manual part
+        selection, so the legacy path remains fully available; this is
+        a second, independent way to generate, triggered by
+        ImagePreviewWidget's separate "Generate (New Pipeline)" button.
+
+        generation_input is passed directly into generate_model() (not
+        a path) -- it was already built, prepared, and analyzed at
+        import time, so this performs no redundant reload.
+
+        Reads current_project.generation_constraints exactly as it
+        already exists on Project (Package_036) -- always None today,
+        since no UI sets it yet, but this handler already respects it
+        correctly the moment a future package adds one.
+        """
+
+        renderer = self.viewport.renderer
+
+        library = (
+            renderer.brick_manager.library
+            if renderer.brick_manager is not None
+            else None
+        )
+
+        if library is None:
+            self.status.showMessage(
+                "LDraw library not available; cannot generate."
+            )
+            return
+
+        try:
+            palette = PaletteEngine(
+                library.library_path / "LDConfig.ldr"
+            )
+
+            constraints = (
+                self.project_manager.current_project.generation_constraints
+            )
+
+            result = generate_model(
+                generation_input,
+                self.catalog,
+                palette,
+                constraints,
+            )
+
+            self.set_current_scene(result.scene)
+
+            self.project_manager.current_project.generation_input = (
+                result.generation_input
+            )
+            self.project_manager.current_project.mark_dirty()
+
+            brick_count = result.scene_analysis.measurements.brick_count
+
+            if result.validation_report.is_valid:
+                validation_summary = "Valid."
+            else:
+                validation_summary = (
+                    f"{len(result.validation_report.issues)} issue(s)."
+                )
+
+            self.status.showMessage(
+                f"Generated {brick_count} bricks. {validation_summary}"
             )
 
         except (OSError, ValueError) as error:

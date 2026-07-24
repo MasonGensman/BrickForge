@@ -13,6 +13,18 @@ GenerationMode/SettingsPanel contract. It emits generate_requested for
 MainWindow to act on, matching how BrickLibraryWidget's brick_selected
 signal is already handled.
 
+Package_044 adds a second, independent "Generate (New Pipeline)" button
+emitting generate_model_requested, for MainWindow.on_generate_model() to
+call the deterministic generate_model() pipeline (Package_043) --
+additive, alongside the legacy mode dropdown/Generate button above, not
+a replacement of it. generate_model() has no equivalent of Height
+Relief or Flat Mosaic's manual part selection, so the legacy path stays
+fully intact; this button is a separate, clearly distinct way to
+generate, not a swap-in for the existing one. Carries the already-built
+GenerationInput directly (not a path) -- see generate_model()'s own
+docstring for why passing only a path here would force a redundant
+second load+prepare+analyze pass over data this widget already holds.
+
 Package_034: builds one GenerationInput per import (via
 GenerationInput.from_source(), default ImagePreparationSettings -- no
 interactive crop/rotate UI here, those settings are reachable
@@ -61,6 +73,14 @@ class ImagePreviewWidget(QDockWidget):
     #
     image_imported = Signal(object)
 
+    #
+    # Package_044: requests generation via the new, deterministic
+    # generate_model() pipeline instead of the legacy mode dropdown.
+    # Carries the current GenerationInput directly -- independent of,
+    # and never mutually exclusive with, generate_requested above.
+    #
+    generate_model_requested = Signal(object)
+
     def __init__(self, parent=None):
         super().__init__("Image Preview", parent)
 
@@ -100,6 +120,16 @@ class ImagePreviewWidget(QDockWidget):
 
         self.generate_button = QPushButton("Generate LEGO")
 
+        #
+        # Package_044: a second, independent button for the new
+        # deterministic pipeline -- deliberately not folded into the
+        # mode dropdown above, since generate_model() doesn't fit the
+        # GenerationMode/SettingsPanel contract (it takes a
+        # GenerationInput and GenerationConstraints, not an
+        # ImageResource and a mode-specific settings object).
+        #
+        self.generate_model_button = QPushButton("Generate (New Pipeline)")
+
         preview_separator = QFrame()
         preview_separator.setFrameShape(QFrame.HLine)
         preview_separator.setFrameShadow(QFrame.Sunken)
@@ -121,6 +151,7 @@ class ImagePreviewWidget(QDockWidget):
         layout.addWidget(self.settings_container)
         layout.addWidget(settings_separator_bottom)
         layout.addWidget(self.generate_button)
+        layout.addWidget(self.generate_model_button)
         layout.addWidget(preview_separator)
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.info)
@@ -134,6 +165,10 @@ class ImagePreviewWidget(QDockWidget):
 
         self.generate_button.clicked.connect(
             self.generate_lego
+        )
+
+        self.generate_model_button.clicked.connect(
+            self.generate_via_new_pipeline
         )
 
         self.mode_combo.currentIndexChanged.connect(
@@ -251,3 +286,20 @@ class ImagePreviewWidget(QDockWidget):
             self._current_mode,
             settings,
         )
+
+    def generate_via_new_pipeline(self):
+        """
+        Package_044: requests generation through generate_model(),
+        independent of the mode dropdown above -- no mode/settings
+        panel involved, since the new pipeline has no equivalent
+        concept yet.
+        """
+
+        if self._generation_input is None:
+
+            self.info.setText(
+                "Please import an image first."
+            )
+            return
+
+        self.generate_model_requested.emit(self._generation_input)

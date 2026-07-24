@@ -204,6 +204,72 @@ class GenerateModelEndToEndTests(unittest.TestCase):
             )
 
 
+class AcceptsGenerationInputDirectlyTests(unittest.TestCase):
+    """Package_044: generate_model() also accepts an already-built
+    GenerationInput, avoiding a redundant reload for callers (like
+    ImagePreviewWidget) that already have one before generation is
+    requested."""
+
+    def test_accepts_a_prebuilt_generation_input(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            ctx = _PipelineFixtureContext(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(ctx.image_path)
+
+            result = generate_model(
+                generation_input, ctx.catalog, ctx.palette,
+            )
+
+            self.assertGreater(
+                result.scene_analysis.measurements.brick_count, 0,
+            )
+            self.assertIs(result.generation_input, generation_input)
+
+    def test_matches_the_result_of_passing_the_equivalent_path(self):
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            ctx = _PipelineFixtureContext(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(ctx.image_path)
+
+            from_input = generate_model(
+                generation_input, ctx.catalog, ctx.palette,
+            )
+            from_path = generate_model(
+                ctx.image_path, ctx.catalog, ctx.palette,
+            )
+
+            self.assertEqual(
+                _scene_signature(from_input.scene),
+                _scene_signature(from_path.scene),
+            )
+
+    def test_performs_no_redundant_reload(self):
+        """Deletes the source file after building the GenerationInput --
+        if generate_model() tried to reload from the path, this would
+        raise FileNotFoundError. It must not, since a GenerationInput
+        was passed directly."""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+
+            ctx = _PipelineFixtureContext(Path(tmp_dir))
+
+            generation_input = GenerationInput.from_source(ctx.image_path)
+
+            Path(ctx.image_path).unlink()
+
+            result = generate_model(
+                generation_input, ctx.catalog, ctx.palette,
+            )
+
+            self.assertGreater(
+                result.scene_analysis.measurements.brick_count, 0,
+            )
+
+
 class GenerationResultImmutabilityTests(unittest.TestCase):
 
     def test_generation_result_is_frozen(self):

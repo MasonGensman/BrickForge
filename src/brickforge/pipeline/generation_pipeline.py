@@ -139,7 +139,7 @@ def _scene_signature(scene: Scene):
 
 
 def generate_model(
-    image_path: str | Path,
+    image_path: str | Path | GenerationInput,
     catalog: PartCatalog,
     palette: PaletteEngine,
     constraints: GenerationConstraints | None = None,
@@ -156,6 +156,21 @@ def generate_model(
         -> repair_scene, repeated until the Scene stops changing
         -> analyze_scene
 
+    image_path accepts a raw path (str/Path) OR an already-built
+    GenerationInput. Package_043 deliberately accepted only a path --
+    zero application callers existed then, so there was no evidence a
+    pre-built GenerationInput needed to be supported, and adding it
+    speculatively would have been exactly the premature flexibility
+    this project avoids. Package_044's inspection found the concrete,
+    evidenced need: ImagePreviewWidget already builds a complete
+    GenerationInput (prepared_image and analysis both already computed)
+    at import time, before generation is ever requested -- passing only
+    a path would force a second, redundant load+prepare+analyze pass
+    over data the caller already holds in memory. When image_path is
+    already a GenerationInput, `settings` is ignored (the input has
+    already been prepared with whatever settings were used to build
+    it) and no reload occurs at all.
+
     Deterministic: given identical (image_path, catalog, palette,
     constraints, settings), always returns an identical GenerationResult
     -- every stage this function calls is independently deterministic,
@@ -168,7 +183,11 @@ def generate_model(
     -- never wrapped.
     """
 
-    generation_input = GenerationInput.from_source(image_path, settings)
+    generation_input = (
+        image_path
+        if isinstance(image_path, GenerationInput)
+        else GenerationInput.from_source(image_path, settings)
+    )
 
     scene = generate_scene(generation_input, catalog, palette, constraints)
     scene = optimize_scene(scene, catalog, constraints)
