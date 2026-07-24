@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QFileDialog, QMainWindow
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
 from brickforge._version import window_title
 from brickforge.engine.scene import Scene
@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         save_project_action = QAction("Save Project", self)
         save_project_as_action = QAction("Save Project As...", self)
         export_model_action = QAction("Export Model...", self)
+        exit_action = QAction("Exit", self)
 
         #
         # Package_047: shortcuts live on these menu QActions only, not
@@ -77,12 +78,20 @@ class MainWindow(QMainWindow):
         save_project_action.setShortcut("Ctrl+S")
         save_project_as_action.setShortcut("Ctrl+Shift+S")
         export_model_action.setShortcut("Ctrl+E")
+        exit_action.setShortcut("Ctrl+Q")
 
         new_project_action.triggered.connect(self.on_new_project)
         open_project_action.triggered.connect(self.on_open_project)
         save_project_action.triggered.connect(self.on_save_project)
         save_project_as_action.triggered.connect(self.on_save_project_as)
         export_model_action.triggered.connect(self.on_export_model)
+        #
+        # Package_048: self.close() re-enters closeEvent() below, so
+        # Exit gets the exact same unsaved-changes guard as the
+        # window's own X button / Alt+F4 for free -- no separate
+        # confirmation logic needed here.
+        #
+        exit_action.triggered.connect(self.close)
 
         file_menu.addAction(new_project_action)
         file_menu.addAction(open_project_action)
@@ -91,6 +100,8 @@ class MainWindow(QMainWindow):
         file_menu.addAction(save_project_as_action)
         file_menu.addSeparator()
         file_menu.addAction(export_model_action)
+        file_menu.addSeparator()
+        file_menu.addAction(exit_action)
 
         #
         # No dedicated tool/button for Duplicate -- there's no fourth
@@ -557,7 +568,64 @@ class MainWindow(QMainWindow):
                 f"Generation failed: {error}"
             )
 
+    def _confirm_discard_unsaved_changes(self) -> bool:
+        """
+        Returns True if it's safe to proceed with an action that would
+        replace or close the current project (New, Open, window
+        close/Exit) -- either because there's nothing unsaved, or
+        because the user explicitly chose to save or discard it.
+        Returns False if the caller should abort: the user chose
+        Cancel, or chose Save but a nested Save-As dialog was itself
+        canceled (or the write failed) -- both of which leave the
+        project still dirty, which is exactly the signal used here
+        rather than duplicating that logic (Package_048).
+        """
+
+        project = self.project_manager.current_project
+
+        if not project.dirty:
+            return True
+
+        response = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            f'"{project.name}" has unsaved changes. '
+            f"Save before continuing?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save,
+        )
+
+        if response == QMessageBox.Cancel:
+            return False
+
+        if response == QMessageBox.Discard:
+            return True
+
+        #
+        # Save -- reuses on_save_project() as-is, including its own
+        # existing "no path yet -> Save As -> possibly canceled" logic,
+        # rather than re-implementing any of it here.
+        #
+        self.on_save_project()
+
+        return not self.project_manager.current_project.dirty
+
+    def closeEvent(self, event):
+        """
+        Package_048: previously unguarded -- the window's own X button
+        / Alt+F4 (and, before this package, the only way to quit at
+        all) discarded unsaved work with zero warning.
+        """
+
+        if self._confirm_discard_unsaved_changes():
+            event.accept()
+        else:
+            event.ignore()
+
     def on_new_project(self):
+
+        if not self._confirm_discard_unsaved_changes():
+            return
 
         self.project_manager.new_project()
 
@@ -569,6 +637,9 @@ class MainWindow(QMainWindow):
         self.status.showMessage("New project created.")
 
     def on_open_project(self):
+
+        if not self._confirm_discard_unsaved_changes():
+            return
 
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -621,6 +692,21 @@ class MainWindow(QMainWindow):
 
         if not path.lower().endswith(".sws"):
             path += ".sws"
+
+        #
+        # Package_048: Project.name previously never updated anywhere
+        # in the save path -- a project saved as "MyModel.sws" kept
+        # showing "Untitled Project" in the window title, the "Saved
+        # ..." status message, and this same dialog's own default
+        # filename next time. Deliberately set here (the UI-driven
+        # "user chose a new name/location" action), not inside
+        # ProjectManager.save() itself -- that method is also called
+        # directly by tests/test_project_serialization.py's golden-file
+        # tests with a Project.name that intentionally does NOT match
+        # the save path, to prove serialization is filename-independent;
+        # deriving the name inside save() would break those.
+        #
+        self.project_manager.current_project.name = Path(path).stem
 
         self._save_project_to(path)
 

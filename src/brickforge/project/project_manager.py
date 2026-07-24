@@ -52,8 +52,15 @@ class ProjectManager:
 
         path = Path(path)
 
-        self.current_project.file_path = path
-
+        #
+        # Package_048: file_path/mark_saved() only commit *after* the
+        # write succeeds -- previously file_path was set beforehand,
+        # so a failed write (permission denied, disk full, an
+        # unavailable network path) left it pointing at a location
+        # that was never actually written, and a subsequent plain
+        # Save would silently retry that same broken path instead of
+        # leaving the project's prior (still-valid) file_path alone.
+        #
         with path.open("w", encoding="utf-8") as file:
 
             json.dump(
@@ -62,6 +69,7 @@ class ProjectManager:
                 indent=2,
             )
 
+        self.current_project.file_path = path
         self.current_project.mark_saved()
 
     def load(self, path: str | Path) -> Project:
