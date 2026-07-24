@@ -1,4 +1,5 @@
 import dataclasses
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
@@ -6,6 +7,7 @@ from PySide6.QtWidgets import QFileDialog, QMainWindow
 
 from brickforge._version import window_title
 from brickforge.engine.scene import Scene
+from brickforge.export.exporter import export_scene
 from brickforge.generation.generation_mode import GenerationMode
 from brickforge.palette.palette_engine import PaletteEngine
 from brickforge.pipeline.generation_pipeline import generate_model
@@ -30,6 +32,7 @@ from brickforge.ui.widgets import (
 )
 
 _PROJECT_FILE_FILTER = "StudWorks Project (*.sws)"
+_EXPORT_FILE_FILTER = "LDraw Model (*.ldr)"
 
 
 class MainWindow(QMainWindow):
@@ -62,17 +65,21 @@ class MainWindow(QMainWindow):
         open_project_action = QAction("Open Project...", self)
         save_project_action = QAction("Save Project", self)
         save_project_as_action = QAction("Save Project As...", self)
+        export_model_action = QAction("Export Model...", self)
 
         new_project_action.triggered.connect(self.on_new_project)
         open_project_action.triggered.connect(self.on_open_project)
         save_project_action.triggered.connect(self.on_save_project)
         save_project_as_action.triggered.connect(self.on_save_project_as)
+        export_model_action.triggered.connect(self.on_export_model)
 
         file_menu.addAction(new_project_action)
         file_menu.addAction(open_project_action)
         file_menu.addSeparator()
         file_menu.addAction(save_project_action)
         file_menu.addAction(save_project_as_action)
+        file_menu.addSeparator()
+        file_menu.addAction(export_model_action)
 
         #
         # No dedicated tool/button for Duplicate -- there's no fourth
@@ -537,4 +544,45 @@ class MainWindow(QMainWindow):
 
         self.status.showMessage(
             f"Saved {self.project_manager.current_project.name}."
+        )
+
+    def on_export_model(self):
+        """
+        Package_045: exports the current Project's Scene to a .ldr file
+        BrickLink Studio can open. Mirrors on_save_project_as()'s own
+        dialog/cancellation/extension handling exactly -- export_scene()
+        (Package_024) needed no changes at all to fit this integration.
+        """
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Model",
+            f"{self.project_manager.current_project.name}.ldr",
+            _EXPORT_FILE_FILTER,
+        )
+
+        if not path:
+            return
+
+        if not path.lower().endswith(".ldr"):
+            path += ".ldr"
+
+        self._export_model_to(path)
+
+    def _export_model_to(self, path):
+
+        scene = self.project_manager.current_project.scene
+
+        try:
+            export_scene(scene, self.catalog, path)
+
+        except OSError as error:
+
+            self.status.showMessage(
+                f"Failed to export model: {error}"
+            )
+            return
+
+        self.status.showMessage(
+            f"Exported {len(list(scene))} bricks to {Path(path).name}."
         )
