@@ -29,14 +29,25 @@ never trigger a false removal.
 
 Depends on engine/ and services/ only through Scene/SceneBrick/
 PartCatalog's existing, unmodified public API, exactly like
-brick_merge_optimizer.py. Never touches generation/, ui/, or render/,
-and does not import from brick_merge_optimizer.py -- kept fully
-independent, duplicating the one small physical constant it needs
-rather than coupling the two optimizer modules together.
+brick_merge_optimizer.py. Never touches ui/ or render/, and does not
+import from brick_merge_optimizer.py -- kept fully independent,
+duplicating the one small physical constant it needs rather than
+coupling the two optimizer modules together.
+
+Package_039: optimize_hidden_brick_removal() accepts a constraints
+parameter for OptimizeCallable conformance but never uses it -- this
+optimizer only removes already-placed bricks, it never selects or
+introduces a new part, so there is nothing for a GenerationConstraints
+to narrow. The part_index lookup below resolves an already-placed
+brick's own definition (for neighbor-offset math), never a new
+candidate, so it correctly stays on catalog.all() rather than
+candidates_for() -- see brick_merge_optimizer.py's own module docstring
+for the same lookup-vs-selection distinction.
 """
 
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
+from brickforge.generation.candidates import GenerationConstraints
 from brickforge.models.part_definition import BrickDefinition
 from brickforge.optimization.optimizer import Optimizer
 from brickforge.optimization.registry import register_optimizer
@@ -113,6 +124,7 @@ def _is_hidden(
 def optimize_hidden_brick_removal(
     scene: Scene,
     catalog: PartCatalog,
+    constraints: GenerationConstraints | None = None,
 ) -> Scene:
     """
     Remove every brick that is fully surrounded on all six sides by
@@ -120,6 +132,10 @@ def optimize_hidden_brick_removal(
     never be visible. A single pass evaluated against the original
     Scene's positions -- see the module docstring for why this makes
     the result inherently idempotent.
+
+    constraints is accepted for OptimizeCallable conformance and never
+    used -- see the module docstring for why (this optimizer never
+    selects a new part).
 
     A brick whose part_name doesn't resolve in `catalog` is kept
     unconditionally (its neighbor spacing can't be determined), the

@@ -15,9 +15,17 @@ later optimizer is expected to see, and may benefit from, geometry an
 earlier optimizer has already transformed. Registration order
 therefore matters -- see optimization/__init__.py for the order known
 optimizer modules are imported in.
+
+Package_039 added an optional constraints parameter, threaded through
+to every optimizer in the chain unchanged. constraints=None (the
+default) preserves this function's exact pre-Package_039 behavior --
+verified directly against the existing merged_column golden-file
+export test, which calls optimize_scene() without a constraints
+argument and still produces byte-identical output.
 """
 
 from brickforge.engine.scene import Scene
+from brickforge.generation.candidates import GenerationConstraints
 from brickforge.optimization.registry import get_optimizer, list_optimizers
 from brickforge.services.part_catalog import PartCatalog
 
@@ -25,6 +33,7 @@ from brickforge.services.part_catalog import PartCatalog
 def optimize_scene(
     scene: Scene,
     catalog: PartCatalog,
+    constraints: GenerationConstraints | None = None,
     optimizer_ids: list[str] | None = None,
 ) -> Scene:
     """
@@ -35,6 +44,10 @@ def optimize_scene(
     Optimizers are chained sequentially: each one receives the Scene
     the previous optimizer produced, not the original `scene` argument.
     This is deterministic and by design -- see the module docstring.
+
+    constraints is passed unchanged to every optimizer in the chain;
+    None (the default) means unconstrained, matching
+    generation.candidates.candidates_for()'s own convention.
 
     Performs no mutation of its own; each optimizer is independently
     responsible for never mutating the Scene it receives.
@@ -56,6 +69,6 @@ def optimize_scene(
                 f"No optimizer registered with id {optimizer_id!r}"
             )
 
-        scene = optimizer.optimize(scene, catalog)
+        scene = optimizer.optimize(scene, catalog, constraints)
 
     return scene

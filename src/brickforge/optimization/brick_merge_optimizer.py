@@ -23,15 +23,29 @@ guarantees running the optimizer again on an already-optimized Scene
 produces an identical Scene -- a merge is never partially applied and
 never left for a hypothetical second external call to finish.
 
+Package_039: _find_merge_target() discovers replacement parts through
+generation.candidates.candidates_for() rather than scanning
+catalog.all() directly, so a caller's GenerationConstraints (e.g. an
+excluded part number, or a category restriction) is honored during
+optimization exactly as it already is during generation -- the same
+Candidate System boundary Package_038's generation engine established.
+constraints=None (the default) makes candidates_for() return the same
+parts, in the same order, as catalog.all() always did (verified
+directly), so this is a behavior-preserving change for every existing
+caller. The part_index lookup below (resolving an *already-placed*
+brick's own definition, never a new candidate) is unaffected -- that is
+metadata lookup, not part selection, and stays on catalog.all().
+
 Depends on engine/ and services/ only through Scene/SceneBrick/
-PartCatalog's existing, unmodified public API. Never touches
-generation/, ui/, or render/.
+PartCatalog's existing, unmodified public API, plus
+generation.candidates (Package_039). Never touches ui/ or render/.
 """
 
 import glm
 
 from brickforge.engine.scene import Scene
 from brickforge.engine.scene_brick import SceneBrick
+from brickforge.generation.candidates import GenerationConstraints, candidates_for
 from brickforge.models.part_definition import BrickDefinition
 from brickforge.optimization.optimizer import Optimizer
 from brickforge.optimization.registry import register_optimizer
@@ -60,23 +74,28 @@ def _rotation_key(
 def _find_merge_target(
     source: BrickDefinition,
     catalog: PartCatalog,
+    constraints: GenerationConstraints | None,
 ) -> BrickDefinition | None:
     """
-    Find a catalog part that exactly matches two of `source` placed
-    end-to-end along their shared stud_length axis: same category,
-    same stud_width, double the stud_length, same height_units.
-    Derived entirely from the catalog's own declared dimensions -- no
-    hardcoded part-number table -- so a larger or different catalog
-    naturally yields different (or no) merge targets without any code
-    change here.
+    Find a candidate part (via candidates_for(), never a direct catalog
+    scan) that exactly matches two of `source` placed end-to-end along
+    their shared stud_length axis: same category, same stud_width,
+    double the stud_length, same height_units. Derived entirely from
+    the catalog's own declared dimensions -- no hardcoded part-number
+    table -- so a larger or different catalog naturally yields
+    different (or no) merge targets without any code change here.
+
+    constraints narrows the eligible candidates exactly as it already
+    does during generation -- an excluded or disallowed part is never
+    selected as a merge target. None means unconstrained.
 
     Returns None if no exact match exists. If more than one candidate
     matches, the lowest part_number is chosen, deterministically.
     """
 
-    candidates = [
+    matches = [
         definition
-        for definition in catalog.all()
+        for definition in candidates_for(catalog, constraints)
         if definition.part_number != source.part_number
         and definition.category == source.category
         and definition.stud_width == source.stud_width
@@ -84,11 +103,11 @@ def _find_merge_target(
         and definition.height_units == source.height_units
     ]
 
-    if not candidates:
+    if not matches:
         return None
 
     return min(
-        candidates,
+        matches,
         key=lambda definition: definition.part_number,
     )
 
@@ -98,6 +117,7 @@ def _merge_pass(
     part_index: dict[str, BrickDefinition],
     target_cache: dict[str, BrickDefinition | None],
     catalog: PartCatalog,
+    constraints: GenerationConstraints | None,
 ) -> tuple[list[SceneBrick], bool]:
     """
     One deterministic pairwise merge pass over `bricks`.
@@ -147,6 +167,7 @@ def _merge_pass(
             target_cache[part_name] = _find_merge_target(
                 source,
                 catalog,
+                constraints,
             )
 
         target = target_cache[part_name]
@@ -205,6 +226,7 @@ def _merge_pass(
 def optimize_brick_merge(
     scene: Scene,
     catalog: PartCatalog,
+    constraints: GenerationConstraints | None = None,
 ) -> Scene:
     """
     Conservatively merge groups of identical, adjacent bricks into
@@ -213,6 +235,10 @@ def optimize_brick_merge(
     call, so calling this again on the result finds nothing further to
     merge -- the second call's first internal pass immediately reports
     no change.
+
+    constraints narrows which replacement parts _find_merge_target() is
+    willing to select (via candidates_for()); None (the default)
+    reproduces this function's exact pre-Package_039 behavior.
 
     Never mutates the input scene: builds new SceneBrick and Scene
     objects throughout. Bricks that are never touched by any merge are
@@ -236,6 +262,7 @@ def optimize_brick_merge(
             part_index,
             target_cache,
             catalog,
+            constraints,
         )
 
         if not changed:
