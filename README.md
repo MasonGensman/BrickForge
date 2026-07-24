@@ -19,7 +19,10 @@ It focuses on:
 
 ## Status
 
-🚧 Early Development (Preview 0.2.0)
+🚀 Preview Release — v0.2.0-preview.1
+
+See [Release Notes](docs/RELEASE_NOTES.md) for what works, known
+limitations, and how to get the Windows build.
 
 ---
 

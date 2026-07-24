@@ -5,7 +5,10 @@ permanent engineering documentation, not a conversation transcript. A new
 Claude session should be able to read only this file and continue development
 with no other context.
 
-Last updated: after Package_048 (commit `efac418b`), 2026-07-24.
+Last updated: after Package_049 (commit `d88b85fa`), 2026-07-24. Package_050
+(the Preview Release itself) is described below as in progress; see its own
+final commit hash in `Package_050.md` and this file's own git history for
+the exact state once it lands.
 
 ---
 
@@ -550,6 +553,45 @@ first time.
   changes were needed to integrate it with the application; every parameter
   it needs was already available on `MainWindow` in exactly the right shape.
 
+## 2.19 Packaging & Release
+
+`StudWorks.spec`, `packaging/version_info.txt`, `scripts/build.ps1`/
+`clean.ps1` (Package_020.5, validated end to end for the first time in
+Package_050)
+
+- **PyInstaller onefile build** (`scripts/build.ps1` → `pyinstaller
+  StudWorks.spec`): `src/main.py` is the entry point; produces a single
+  self-contained `dist/StudWorks.exe` (~70 MB) with no installer and no
+  installation step — genuinely portable, runs from any location.
+- **Version metadata** is centralized in `brickforge._version` and hand-kept
+  in sync with `packaging/version_info.txt` and `pyproject.toml` at each
+  release (`_version.py`'s own docstring explains why this drifted once,
+  historically, and why it's manually verified now). Confirmed consistent
+  (`0.2.0` / `Preview` everywhere) as of Package_049, and confirmed
+  *embedded correctly in the actual built binary* — not just the source
+  files — for the first time in Package_050 (`FileVersion 0.2.0.0`,
+  `ProductVersion "Preview 0.2.0"`, extractable 32×32 icon resource, all
+  verified directly against the built `.exe`, not inferred from the spec).
+- **The bundled tier-4 fallback LDraw library
+  (`src/brickforge/ldraw/ldraw/`) deliberately contains no real part
+  geometry** — `parts/` is empty by design (primitives in `p/` plus
+  `LDConfig.ldr` only), to keep the bundle ~18 MB instead of the real
+  library's ~590 MB (`services/ldraw_library_locator.py`'s 4-tier
+  discovery: env var → standard Windows install paths → project-root
+  `ldraw/` in dev builds only → this bundled fallback, always present).
+  **Load-bearing consequence, first observed end-to-end in Package_050**:
+  a packaged build with no real LDraw library installed anywhere on the
+  machine it runs on will resolve to this tier-4 fallback, `PartCatalog`
+  will gracefully degrade to the 9-part seed catalog exactly as designed
+  (§2.2) — but the *renderer's* mesh loader (`BrickManager`/`LDrawLibrary`)
+  then also fails to find real geometry for **even those 9 seed parts**,
+  since the bundled fallback has zero part `.dat` files at all. The net
+  effect: Scene data, save/load, and export all work correctly, but the
+  3D viewport shows no visible brick geometry. This is an intentional
+  packaging-size tradeoff from Package_020.5, not a bug — but its full
+  user-facing consequence was never previously validated or documented.
+  See `docs/RELEASE_NOTES.md` for the user-facing writeup.
+
 ---
 
 # 3. Package History
@@ -739,6 +781,42 @@ filename) — the latter fixed in the UI layer specifically to avoid
 breaking `test_project_serialization.py`'s golden-file tests, which
 rely on `ProjectManager.save()` staying filename-independent.
 
+## Package_049 — Release Candidate Validation (`d88b85fa`)
+Second and final package of Release Preparation. Pure documentation/
+consistency/cleanup — zero `src/` changes, the cleanest scope-isolation
+case in the project's history. Fixed a factual misattribution in
+`README.md`, brought this document (`docs/HANDOFF.md`) under version
+control for the first time (it had been untracked all along despite
+calling itself "canonical"), removed six empty documentation stub
+files and assorted orphaned/stale filesystem cruft (a duplicated-path
+stale screenshot; four empty, git-invisible directories). CI and
+`src/brickforge/__main__.py`'s fix were both explicitly discussed and
+deferred, not silently dropped.
+
+## Package_050 — Windows Preview Release (v0.2.0-preview.1)
+The Preview Release itself, concluding the initial development roadmap.
+Ran the full regression suite, built a real Windows executable via
+PyInstaller for the first time in this project's history, and actually
+launched it — which surfaced a real, previously-undocumented consequence
+of a deliberate Package_020.5 design decision: the bundled tier-4
+fallback LDraw library contains no real part geometry (`parts/` is
+empty by design, primitives + `LDConfig.ldr` only, to keep the bundle
+~18MB instead of ~590MB), so **without a real, separately-installed
+LDraw library, the packaged build's 3D viewport shows no visible brick
+geometry at all** — Scene data, save/load, and export are completely
+unaffected. This was never observed before because every prior
+package's own smoke-testing ran `python src/main.py` from source, which
+resolves the project-root `ldraw/` directory (tier 3) rather than the
+bundled tier-4 fallback a real packaged build uses. Documented as the
+Preview's most significant Known Limitation (see §2.19 and
+`docs/RELEASE_NOTES.md`) rather than "fixed," since a real fix would
+mean bundling substantially more data — a packaging-scope decision
+explicitly out of bounds for this package ("architecture is frozen").
+Produced `docs/CHANGELOG.md` and `docs/RELEASE_NOTES.md` (both
+recreated/created fresh — the prior, empty `docs/CHANGELOG.md` had been
+removed in Package_049 for being content-free; this release is exactly
+the moment a real changelog entry became possible).
+
 ---
 
 # 4. Current Roadmap
@@ -748,23 +826,22 @@ rely on `ProjectManager.save()` staying filename-independent.
 | Phase | Packages | Status |
 |---|---|---|
 | Application Integration | 044, 045, 046, 047 | ✓ **complete** |
-| Release Preparation | 048, 049 | 048 ✓, 049 **in progress** |
-| Preview Release | 050 (Windows Preview) | not started |
+| Release Preparation | 048, 049 | ✓ **complete** |
+| Preview Release | 050 (Windows Preview) | **in progress — this is the release itself** |
 
-**Application Integration is complete** (044-047): a user can complete the
-full **Import Image → Generate Model → Export Model** journey through the
-new deterministic pipeline (044/045), the workflow itself is legible to a
-first-time user — labeled generation paths, working viewport-selection
-feedback, accurate branding/title state, no silently-broken toolbar
-controls (046), and keyboard shortcuts/deduplicated generation guard/dead
-code removal closed out the phase (047).
+**The initial development roadmap is now complete as of this package.**
+Application Integration (044-047) delivered the full Import → Generate →
+Export journey and polished it into something legible to a first-time user.
+Release Preparation (048-049) closed the data-integrity gap that mattered
+most (Package_048's unguarded-window-close fix) and validated
+documentation/repo consistency (Package_049). Package_050 is the Preview
+Release itself: a real Windows executable was built via PyInstaller,
+launched, and validated — see §2.19 above for what that validation found.
 
-**Release Preparation is in progress** (048-049). Package_048 fixed the
-data-integrity risks found by inspecting the application's lifecycle (see
-§2.14's Package_048 entry) — most notably an unguarded window close that
-discarded unsaved work with zero warning. Package_049 (Release Candidate
-Validation) is a documentation/consistency/cleanup pass with no
-architecture changes — this document's own refresh is part of it.
+**Post-Package_050, StudWorks stops using the numbered-package roadmap.**
+Future work proceeds as milestone-based releases (v0.3.0 and beyond),
+per Package_050's own Post-Release Roadmap. Don't expect a "Package_051" —
+look for a version-numbered milestone spec instead.
 
 **Deferred, with explicit ownership, not silently dropped**:
 - A `GenerationConstraints`-editing settings panel (the backend already
@@ -914,6 +991,13 @@ progressively; the full 12-part form has been standard since Package_045):
 
 # 7. Known Technical Debt
 
+- **The Preview build's bundled LDraw library has no real part
+  geometry.** Confirmed end-to-end in Package_050: without a real,
+  separately-installed LDraw library, the packaged executable's 3D
+  viewport shows no visible brick geometry at all (see §2.19). An
+  intentional Package_020.5 packaging-size tradeoff, not a bug — but now
+  documented as the Preview Release's single most significant Known
+  Limitation, since it was never previously validated end-to-end.
 - **Renderer's LDraw geometry renders upside-down** (Y-down native LDraw
   convention vs. the renderer's Y-up assumption). Surfaced Package_024,
   never fixed, still outstanding. Does not affect any backend pipeline
@@ -929,8 +1013,9 @@ progressively; the full 12-part form has been standard since Package_045):
   Flagged during Package_047's inspection (F10), assigned to "Package_048"
   by that package's own handoff, but Package_048's actual mission was data
   integrity, not input handling, so this was never actually picked up.
-  Needs explicit re-assignment (Release Preparation continuation or
-  Package_050), not assumed still pending in 048.
+  Package_050 (architecture-frozen, defects-only) is also not the place
+  for it — genuinely deferred now to a post-release milestone (v0.3.0+),
+  not assumed pending in any remaining numbered package.
 - **`src/brickforge/__main__.py` is still corrupted** (contains literal
   shell-command text, not Python) — flagged since Package_046 (F11),
   re-confirmed broken as of Package_049. Doesn't block packaging
@@ -1014,138 +1099,139 @@ progressively; the full 12-part form has been standard since Package_045):
 
 ---
 
-# 9. Most Recently Completed Package (048) — Full Detail
+# 9. Most Recently Completed Package (050) — Full Detail
 
-**Package_048 — Data Integrity & Application Lifecycle** (commit `efac418b`)
+**Package_050 — Windows Preview Release (v0.2.0-preview.1)** — the release
+itself, concluding the initial development roadmap.
 
-- **Inspection findings**: `MainWindow` had no `closeEvent()` override at
-  all — the window's X button/Alt+F4 (the app's only quit path; there was
-  no File > Exit either) discarded unsaved work with zero warning, the
-  single most severe risk found in the app's whole history. `New`/`Open`
-  had the same gap (carried over as F12 from Packages 046/047). Separately,
-  `ProjectManager.save()` committed `file_path` before the write succeeded,
-  and `Project.name` never updated anywhere in the save path (permanently
-  "Untitled Project" regardless of the real filename).
-- **Approved architecture**: one shared `_confirm_discard_unsaved_changes()`
-  gate (`QMessageBox.question()`: Save/Discard/Cancel) reused by
-  `closeEvent()`, `on_new_project()`, and `on_open_project()` — it reuses
-  the *existing* `on_save_project()` rather than re-implementing its
-  "no path yet → Save As → possibly canceled" handling. A File > Exit
-  action reuses the same guarded `closeEvent()` via `self.close()`.
-  `ProjectManager.save()` reordered (file_path/mark_saved only commit
-  after a successful write). `Project.name` derivation moved to
-  `on_save_project_as()` specifically, not into `ProjectManager.save()`
-  itself, to avoid breaking `test_project_serialization.py`'s golden-file
-  tests (which call `save()` directly with a name that intentionally
-  doesn't match the path, to prove serialization is filename-independent).
-- **Implementation scope**: `ui/main_window.py` and
-  `project/project_manager.py` only. New test file
-  `tests/test_ui_project_lifecycle.py` (16 tests).
-- **Every inspection prediction was confirmed** — none refuted, none
-  partial; the golden-file suite was re-run directly (not just reasoned
-  about) both before and after the `ProjectManager.save()` change. Full
-  detail in `Package_048.md`.
+- **What was actually validated, not just planned**: the full regression
+  suite (429 tests) was re-run immediately before the build. A real
+  Windows executable was built via `scripts/build.ps1`/PyInstaller for
+  the first time in this project's history (all prior "verify the app
+  works" steps ran `python src/main.py` from source). The built
+  `dist/StudWorks.exe` was launched as an actual OS process (not just
+  imported/unit-tested) and confirmed to stay running well past its
+  catalog-loading phase with no crash or traceback. Its embedded version
+  resource was inspected directly (`FileVersion 0.2.0.0`, `ProductVersion
+  "Preview 0.2.0"`, matching `_version.py`/`packaging/version_info.txt`
+  exactly) and a valid 32×32 icon was actually extracted from the binary,
+  not just assumed present because the build log said so.
+- **The one real discovery**: launching the actual packaged build (rather
+  than running from source) surfaced that the bundled tier-4 fallback
+  LDraw library has no real part geometry (§2.19) — a consequence of a
+  deliberate Package_020.5 packaging-size decision that had never been
+  observed end-to-end before, since every prior smoke test ran from
+  source and hit the project-root `ldraw/` tier instead. Classified as a
+  Known Limitation to document, not a defect to fix, since correcting it
+  would mean bundling substantially more data — out of bounds for an
+  architecture-frozen release package.
+- **Honest tooling limitation, stated plainly rather than glossed over**:
+  no tool available in this environment can drive a native Windows GUI
+  window (click buttons, verify on-screen rendering) — the same
+  limitation noted since Package_046. "Launches, stays running, no
+  crash, correct embedded metadata" is real, verified evidence; "a human
+  clicked through Import → Generate → Export in the actual built .exe
+  and watched it work" is not something this session could perform, and
+  is called out as such rather than implied.
+- **Deliverables**: `dist/StudWorks.exe`, `dist/StudWorks-v0.2.0-preview.1-win64.zip`
+  (exe + `LICENSE` + a short preview README, since no installer exists),
+  `docs/CHANGELOG.md` and `docs/RELEASE_NOTES.md` (both created fresh —
+  the prior empty `CHANGELOG.md` had been removed in Package_049 for
+  having no content; this release is exactly the moment a real entry
+  became possible), this document's own final refresh, and a
+  `v0.2.0-preview.1` git tag. Full certification, per-category readiness,
+  and the Post-Release Roadmap are in `Package_050.md` itself, not
+  duplicated here.
 
-**Package_049 — Release Candidate Validation is in progress** (this
-document's own refresh is part of it — see the commit this package
-produces for its final hash). A documentation/consistency/cleanup pass:
-fixed a factual misattribution in `README.md`, removed six empty doc
-stubs and assorted empty/stale filesystem cruft, refreshed this document,
-deduplicated a `.gitignore` line. No architecture changes. CI was
-evaluated and explicitly deferred past the Preview Release.
-
-**Package_050 (Windows Preview Release) has not been started.**
+**The initial numbered-package roadmap ends here.** Architecture is now
+frozen. Future work proceeds as milestone-based releases (v0.3.0 and
+beyond) — see `Package_050.md`'s own Post-Release Roadmap for candidates.
 
 ---
 
 # 10. Next Steps
 
-1. Confirm Package_049 has been committed (check `git log` for its commit
-   hash and `Package_049.md`), then wait for the user to issue
-   Package_050's mission specification, in the same "Begin Package_050 in
-   INSPECTION AND PLANNING MODE ONLY" format every prior package has used.
-2. Follow the established workflow exactly: inspect the real, current code
-   (do not assume anything from this document is still accurate without
-   re-checking anything that matters for the new package — this document is
-   a snapshot as of Package_048/049, not a live source of truth for future
-   state) → produce a structured plan matching whatever sections the
-   mission requests → wait for explicit approval → implement → verify
-   (compile, full regression suite, scope isolation, AST import check) →
-   write `Package_050.md` (including Inspection Predictions) → commit,
-   staging only the package's own files → update the auto-memory system.
-3. Do not assume Package_050's content beyond what HANDOFF/roadmap already
-   name as its goal (a distributable Windows build) — the actual packaging
-   mechanics remain fully unaddressed as of Package_049, and Package_049's
-   own inspection found `StudWorks.spec`/`packaging/version_info.txt`/
-   `scripts/build.ps1` consistent but never yet validated by an actual
-   package running a real build end to end.
-4. Two carried-forward, unassigned items worth resolving before or during
-   050, per Package_049's own review: `src/brickforge/__main__.py`'s
-   corruption (open since Package_046, does not block packaging but breaks
-   `python -m brickforge`), and Delete-key support in the viewport
-   (Package_047's F10, never actually picked up by Package_048 despite
-   that package's own handoff naming it — needs explicit re-assignment).
+1. There is no "Package_051." The next unit of work is a version-numbered
+   milestone (e.g., v0.3.0), scoped and specified fresh when the user is
+   ready — do not assume its content from this document; check
+   `Package_050.md`'s Post-Release Roadmap for candidates under
+   consideration, none of them confirmed.
+2. **Before any future work**, re-verify this document's claims against
+   the actual current source — this is a snapshot as of Package_050, and
+   the discipline that caught this release's own LDraw-bundling discovery
+   (verify by actually running the thing, not by reading the code and
+   reasoning about it) applies exactly as much to whatever comes next.
+3. Two items carried forward, unassigned, worth resolving early in
+   whatever comes next: `src/brickforge/__main__.py`'s corruption (open
+   since Package_046; doesn't block the packaged build but breaks
+   `python -m brickforge` from source), and Delete-key support in the
+   viewport (Package_047's F10, never actually picked up despite being
+   nominally "assigned" twice).
+4. If a genuine release-blocking defect is found in this Preview build
+   after the fact (not a Known Limitation already documented in
+   `docs/RELEASE_NOTES.md`), the established workflow still applies:
+   inspect, document, get approval, fix minimally, re-run the full
+   regression suite, and record it — the process doesn't change just
+   because the numbered roadmap ended.
 
 ---
 
 # 11. Context for the Next Claude Instance
 
 You're picking up StudWorks (`brickforge` package, `C:\projects\BrickForge`,
-git branch `develop`) right after Package_048 (with Package_049 having just
-run as part of producing/updating this very document). Read this document
-fully before doing anything else — it is written to be sufficient on its
-own.
+git branch `develop`) right after Package_050 — **the Preview Release has
+shipped, and the initial development roadmap is complete.** Read this
+document fully before doing anything else — it is written to be
+sufficient on its own.
 
 **Where things stand**: a complete, deterministic backend pipeline
 (image → Scene, `generate_model()`) was built across Packages 034–043.
-Packages 044–047 connected that backend to the actual application and then
-polished the result into something legible to a first-time user — labeled
-generation paths, working viewport-selection feedback, keyboard shortcuts,
-no dead code, no silently-broken controls. Package_048 then closed the
-data-integrity gap that mattered most for a public release: unsaved work
-could previously vanish with zero warning from the single most common
-action in any desktop app (closing the window). Package_049 was a
-documentation/cleanup pass preparing for Package_050, the Windows Preview
-Release itself, which has not yet started.
+Packages 044–047 connected that backend to the actual application and
+polished it into something legible to a first-time user. Packages 048–049
+closed the data-integrity gap that mattered most (an unguarded window
+close that could silently discard unsaved work) and validated
+documentation/repo consistency. Package_050 built and validated a real
+Windows executable for the first time, surfaced one genuine
+previously-undocumented limitation (no bundled LDraw part geometry), and
+shipped `v0.2.0-preview.1` — a real, taggable, evaluable Preview Release.
 
 **The governing philosophy** is inspection-first, evidence-driven,
 change-averse engineering: read the real code before proposing anything,
-verify anything uncertain empirically, and only evolve an API or introduce
-a new abstraction when a concretely inspected workflow demands it — never
-speculatively. This project has repeatedly concluded that the
-*architecturally correct* answer was to build *less* than what a literal
-reading of a mission asked for (Package_044's canceled `GenerationProject`
-wrapper; Package_048's name-derivation fix deliberately kept out of
-`ProjectManager.save()` specifically because inspection found it would
-break existing golden-file tests) — and said so explicitly rather than
-forcing an implementation or silently working around the tension. That is
-not a failure mode here; it is exactly what rigorous inspection is for, and
-the user has consistently rewarded it.
+verify anything uncertain empirically — including, as this final package
+demonstrated, actually running the packaged artifact rather than only its
+source form — and only evolve an API or introduce a new abstraction when
+a concretely inspected workflow demands it, never speculatively. This
+project has repeatedly concluded that the *architecturally correct*
+answer was to build or claim *less* than what a literal reading of a
+mission asked for (Package_044's canceled `GenerationProject` wrapper;
+Package_048's name-derivation fix deliberately kept out of
+`ProjectManager.save()`; Package_050 documenting the LDraw limitation
+rather than attempting a packaging redesign under an explicit
+architecture freeze) — and said so explicitly rather than forcing an
+implementation or quietly working around the tension. The user has
+consistently rewarded this. Do not stop applying it just because the
+numbered roadmap has ended.
 
-**The development workflow, unchanged across 49 packages**: every package
-begins with an explicit "INSPECTION AND PLANNING MODE ONLY" instruction —
-no files are touched until a structured plan is presented and approved.
-Implementation then proceeds in one continuous pass: build, test rigorously
-(unit tests plus a full regression run — specifically re-run any existing
-test suite a change could plausibly affect, not just reason about it, as
-Package_048 did for the golden-file tests), verify scope isolation via
-`git diff --stat` and an AST import check, write a `Package_XXX.md`
-capturing *why* decisions were made (not just what changed), and commit —
-staging only that package's own files, always excluding the pre-existing,
-user-owned `.vscode/settings.json`/`docs/ARCHITECTURE.md` diffs. A
-persistent memory system at
+**The development workflow that got here, across 50 packages**: every
+package began with an explicit "INSPECTION AND PLANNING MODE ONLY" (or,
+for this final one, "IMPLEMENTATION MODE" once the user judged inspection
+unnecessary given the mission's own detail) instruction. Implementation
+proceeded in one continuous pass: build, test rigorously (a full
+regression run, plus — as this package demonstrated — actually exercising
+the real, packaged artifact when that's what the mission calls for, not
+just its unit-tested source form), verify scope isolation via
+`git diff --stat`, write a `Package_XXX.md` capturing *why* decisions were
+made, and commit — staging only that package's own files, always excluding
+the pre-existing, user-owned `.vscode/settings.json`/`docs/ARCHITECTURE.md`
+diffs. A persistent memory system at
 `C:\Users\mason\.claude\projects\C--projects-BrickForge\memory\` (index at
-`MEMORY.md`) is updated after every package — read it, and specifically
-check `upcoming_package_roadmap.md` for the latest phase/package status,
-since it's updated more frequently than this document will be.
+`MEMORY.md`) is updated after every package — read it for the fastest
+path back into context.
 
-**What to do first**: confirm whether Package_049 has actually been
-committed (this document may have been updated as part of that package's
-own work before the commit landed — check `git log`). Package_050 has not
-been specified. When the user provides it, treat this document as your
-starting context — but re-verify anything you're about to build on by
-reading the actual current source, the same discipline every prior package
-has applied to everything before it. This document describes the state as
-of Package_048/049; the codebase may have moved by the time you're reading
-this if any work happened between then and now that this document wasn't
-updated to reflect.
+**What to do first**: there is no active package. Wait for the user to
+define the next milestone (a version number, not a package number). When
+they do, re-verify anything you're about to build on by reading the
+actual current source — this document describes the state as
+of Package_050 (`v0.2.0-preview.1`); the codebase may have moved by the
+time you're reading this if any work happened between then and now that
+this document wasn't updated to reflect.
