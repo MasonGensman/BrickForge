@@ -41,7 +41,14 @@ from brickforge.models.part_definition import BrickDefinition
 
 logger = logging.getLogger(__name__)
 
-CACHE_SCHEMA_VERSION = 1
+#
+# Bumped to 2 for Package_037: build_catalog_parts()'s logic changed
+# (stud_width/stud_length/height_units/category are now independently
+# derived where the geometry/header supports it, rather than always
+# placeholder), so an on-disk cache built under the old logic must be
+# rebuilt rather than silently served as if it reflected the new one.
+#
+CACHE_SCHEMA_VERSION = 2
 
 _CACHE_APP_DIR_NAME = "StudWorks"
 _CACHE_FILE_NAME = "part_catalog.pkl"
